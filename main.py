@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, Response
+from fastapi import FastAPI, Form, Response, BackgroundTasks
 from twilio.twiml.voice_response import VoiceResponse
 
 app = FastAPI()
@@ -21,7 +21,7 @@ async def process_user_transcript(text: str):
     pass
 
 @app.post("/respond")
-async def respond(SpeechResult: str = Form(None)):
+async def respond(background_tasks: BackgroundTasks, SpeechResult: str = Form(None)):
     """Triggered after the person finishes speaking."""
     print("\n" + "="*40)
     if SpeechResult:
@@ -32,7 +32,7 @@ async def respond(SpeechResult: str = Form(None)):
     
     # Hang up the call cleanly
     response = VoiceResponse()
-    process_user_transcript(SpeechResult)
+    background_tasks.add_task(process_user_transcript, SpeechResult)
     response.say(f"I heard {SpeechResult}. Thanks, goodbye")
     response.hangup()
     

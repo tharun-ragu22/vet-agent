@@ -30,7 +30,6 @@ def test_voice_endpoint_returns_twiml_gather():
 
 @patch("main.process_user_transcript")
 def test_respond_endpoint_captures_speech_transcript(mock_processor):
-    """Test that /respond captures the Form-urlencoded SpeechResult from Twilio."""
     # Given a user is on a call with the agent
     # When the user says something
     
