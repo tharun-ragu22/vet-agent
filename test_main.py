@@ -44,4 +44,4 @@ def test_respond_endpoint_captures_speech_transcript(mock_processor):
     
     # Then the system should get what the user said
     assert response.status_code == 200
-    mock_processor.assert_called_once_with('hi')
+    mock_processor.assert_called_once_with(TEST_MESSAGE)
