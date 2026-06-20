@@ -7,6 +7,11 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.137.2",
     "httpx2>=2.4.0",
+    "langchain-core>=1.4.8",
+    "langchain-ollama>=1.1.0",
+    "logfire>=4.37.0",
+    "pydantic-ai-slim[openai]>=1.107.0",
+    "pydantic-evals[logfire]>=1.107.0",
     "pytest>=9.1.1",
     "python-multipart>=0.0.32",
     "twilio>=9.10.9",
