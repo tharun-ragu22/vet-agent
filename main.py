@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Form, Response, BackgroundTasks
 from twilio.twiml.voice_response import VoiceResponse
+from agent.prod_agent import ProdAgent
 
 app = FastAPI()
+agent = ProdAgent()
 GREETING_TEXT = "Please say something after the beep."
 
 @app.post("/voice")
@@ -15,13 +17,8 @@ async def voice():
     
     return Response(content=str(response), media_type="application/xml")
 
-async def process_user_transcript(text: str):
-    """A separate function handling the business logic processing."""
-    # This might log to a DB or send data somewhere else in production
-    pass
-
 @app.post("/respond")
-async def respond(background_tasks: BackgroundTasks, SpeechResult: str = Form(None)):
+async def respond(SpeechResult: str = Form(None)):
     """Triggered after the person finishes speaking."""
     print("\n" + "="*40)
     if SpeechResult:
@@ -32,8 +29,9 @@ async def respond(background_tasks: BackgroundTasks, SpeechResult: str = Form(No
     
     # Hang up the call cleanly
     response = VoiceResponse()
-    background_tasks.add_task(process_user_transcript, SpeechResult)
-    response.say(f"I heard {SpeechResult}. Thanks, goodbye")
-    response.hangup()
+    # background_tasks.add_task(process_user_transcript, SpeechResult)
+    ret = await agent.run_agent(SpeechResult)
+    print('finished!', ret.output)
+    response.say(ret.output)
     
     return Response(content=str(response), media_type="application/xml")
