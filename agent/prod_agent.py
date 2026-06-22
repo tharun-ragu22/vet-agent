@@ -1,12 +1,11 @@
 from .agent_interface import IAgent
-from pydantic_ai.models.ollama import OllamaModel
-from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai import Agent, AgentRunResult
-from .models import gemma_model
-class LocalAgent(IAgent):
+from .models import google_model
+class ProdAgent(IAgent):
+    
 
     _agent = Agent(
-        model=gemma_model,
+        model=google_model,
         system_prompt="""
         You are a receptionist agent for a veteranarian office. You will use local tools whenever you can.
          
@@ -28,11 +27,11 @@ class LocalAgent(IAgent):
         return True
 
     # 4. The run_agent execution wrapper
-    def run_agent(self, prompt: str) -> AgentRunResult[str]:
-        res = self._agent.run_sync(prompt)
+    async def run_agent(self, prompt: str) -> AgentRunResult[str]:
+        res = await self._agent.run(prompt)
         return res
 
 
 if __name__ == "__main__":
-    test_agent = LocalAgent()
+    test_agent = ProdAgent()
     print(test_agent.run_agent('Hi! I need to make an appointment for my dog Coco at 5pm today. Can you schedule me in?'))
