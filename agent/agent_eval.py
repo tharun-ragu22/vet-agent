@@ -1,7 +1,7 @@
 import logfire
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import HasMatchingSpan
-from agent.local_agent import LocalAgent
+from .local_agent import LocalAgent
 
 # 1. Initialize local-only logfire
 logfire.configure(send_to_logfire=False)
@@ -23,6 +23,11 @@ dataset = Dataset(
                 HasMatchingSpan(
                     query={
                         'has_attributes': {'gen_ai.tool.name': 'check_availability'}
+                    }
+                ),
+                HasMatchingSpan(
+                    query={
+                        'has_attributes': {'gen_ai.tool.name': 'make_appointment'}
                     }
                 )
             ],
