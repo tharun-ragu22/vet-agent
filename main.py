@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Form, Response, BackgroundTasks
+from fastapi import FastAPI, Form, Response, Depends
 from twilio.twiml.voice_response import VoiceResponse
+from agent.agent_interface import IAgent
 from agent.prod_agent import ProdAgent
 
 app = FastAPI()
-agent = ProdAgent()
+
+def get_agent() -> IAgent:
+    return ProdAgent()
 GREETING_TEXT = "Please say something after the beep."
 
 @app.post("/voice")
@@ -18,7 +21,7 @@ async def voice():
     return Response(content=str(response), media_type="application/xml")
 
 @app.post("/respond")
-async def respond(SpeechResult: str = Form(None)):
+async def respond(SpeechResult: str = Form(None), agent: IAgent = Depends(get_agent)):
     """Triggered after the person finishes speaking."""
     print("\n" + "="*40)
     if SpeechResult:
