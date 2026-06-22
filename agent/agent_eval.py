@@ -1,3 +1,4 @@
+import asyncio
 import logfire
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import HasMatchingSpan
@@ -35,9 +36,13 @@ dataset = Dataset(
     ],
 )
 
-def run_agent_task(inputs: str) -> str:
-    return test_agent.run_agent(inputs)
+async def run_agent_task(inputs: str) -> str:
+    return await test_agent.run_agent(inputs)
 
-report = dataset.evaluate_sync(run_agent_task)
+async def main():
 
-report.print()
+    report = await dataset.evaluate(run_agent_task)
+
+    report.print()
+
+asyncio.run(main())

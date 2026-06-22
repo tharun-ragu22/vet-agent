@@ -1,6 +1,4 @@
 from .agent_interface import IAgent
-from pydantic_ai.models.ollama import OllamaModel
-from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai import Agent, AgentRunResult
 from .models import gemma_model
 class LocalAgent(IAgent):
@@ -28,8 +26,8 @@ class LocalAgent(IAgent):
         return True
 
     # 4. The run_agent execution wrapper
-    def run_agent(self, prompt: str) -> AgentRunResult[str]:
-        res = self._agent.run_sync(prompt)
+    async def run_agent(self, prompt: str) -> AgentRunResult[str]:
+        res = await self._agent.run(prompt)
         return res
 
 
