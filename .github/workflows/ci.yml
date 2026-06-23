@@ -27,5 +27,7 @@ jobs:
         run: uv sync --locked --all-extras --dev
 
       - name: Run tests
+        env: 
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           uv run pytest -v
