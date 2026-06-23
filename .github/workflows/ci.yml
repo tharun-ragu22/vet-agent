@@ -5,14 +5,14 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  unit_tests:
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out code
         uses: actions/checkout@v3
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -22,12 +22,45 @@ jobs:
 
       - name: Set up Python
         run: uv python install
- 
+
       - name: Install the project
         run: uv sync --locked --all-extras --dev
 
       - name: Run tests
-        env: 
+        env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           uv run pytest -v
+
+  agent_evals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          # Install a specific version of uv.
+          version: "0.11.23"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama and Pull Gemma
+        run: |
+          ollama serve &
+          # Wait for Ollama to be ready
+          sleep 5
+          ollama pull gemma2:2b # Choose the size based on runner memory
+
+      - name: Run agent evals
+        run: uv run python -m agent.agent_eval
