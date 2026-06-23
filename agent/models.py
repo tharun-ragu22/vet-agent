@@ -12,10 +12,6 @@ gemma_model = OllamaModel(
     provider=OllamaProvider(base_url="http://localhost:11434/v1"),
 )
 
-openrouter_model = OpenRouterModel(
-    "google/gemma-4-26b-a4b-it:free",
-)
-
 google_model = GoogleModel(
     "gemini-3.5-flash"
 )
