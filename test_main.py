@@ -75,6 +75,32 @@ def test_respond_endpoint_gets_agent_response(client):
     root = ET.fromstring(response.text)
     assert root.tag == "Response"
     
-    say = root.find('Say')
+    say = next(root.iter('Say'), None)
+    assert say is not None
+    assert len(say.text) > 0
+
+def test_respond_endpoint_gets_agent_response_and_stays_on_call(client):
+    # Given the agent has greeted the user
+    response = client.post("/voice")
+    # When the user says something
+    
+    mock_twilio_form_data = {
+        "SpeechResult": TEST_MESSAGE,
+        "Confidence": "0.98",
+        "CallSid": "CA1234567890abcdef"
+    }
+    
+    
+    response = client.post("/respond", data=mock_twilio_form_data)
+    print('response:', response.text)
+    
+    # Then the system should greet them
+    # And stay on the call
+    root = ET.fromstring(response.text)
+    assert root.tag == "Response"
+    gather = root.find("Gather")
+    assert gather is not None
+    
+    say = gather.find('Say')
     assert say is not None
     assert len(say.text) > 0

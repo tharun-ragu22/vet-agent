@@ -32,9 +32,14 @@ async def respond(SpeechResult: str = Form(None), agent: IAgent = Depends(get_ag
     
     # Hang up the call cleanly
     response = VoiceResponse()
-    # background_tasks.add_task(process_user_transcript, SpeechResult)
+    gather = response.gather(
+        input="speech",
+        action="/respond", # Loops back here when they finish speaking again
+        method="POST",
+        speech_timeout="auto"
+    )
     ret = await agent.run_agent(SpeechResult)
     print('finished!', ret.output)
-    response.say(ret.output)
+    gather.say(ret.output)
     
     return Response(content=str(response), media_type="application/xml")
