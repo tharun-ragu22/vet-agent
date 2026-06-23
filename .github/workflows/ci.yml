@@ -63,4 +63,6 @@ jobs:
           ollama pull gemma2:2b # Choose the size based on runner memory
 
       - name: Run agent evals
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: uv run python -m agent.agent_eval
