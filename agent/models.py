@@ -7,9 +7,6 @@ import os
 
 load_dotenv()
 
-
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-
 gemma_model = OllamaModel(
     model_name="gemma4:latest",
     provider=OllamaProvider(base_url="http://localhost:11434/v1"),
