@@ -60,7 +60,7 @@ jobs:
           ollama serve &
           # Wait for Ollama to be ready
           sleep 5
-          ollama pull gemma2:2b # Choose the size based on runner memory
+          ollama pull gemma4:latest # Choose the size based on runner memory
 
       - name: Run agent evals
         env:
