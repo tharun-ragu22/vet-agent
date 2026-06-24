@@ -1,7 +1,6 @@
 import sqlite3
 import sys
 from pathlib import Path
-import pytest
 
 # 1. Force Python to see the root directory before doing ANY imports
 root_dir = str(Path(__file__).resolve().parent.parent)

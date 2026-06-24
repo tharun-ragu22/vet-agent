@@ -1,5 +1,5 @@
 from agent.agent_interface import IAgent
-from pydantic_ai import Agent, AgentRunResult, RunContext
+from pydantic_ai import Agent, AgentRunResult
 from .models import google_model
 import sqlite3
 
@@ -15,17 +15,6 @@ class ProdAgent(IAgent):
         This is all you need to do to when someone asks to make you an appointment, don't ask for any more information.
         """
     )
-    
-    def __init__(self, db_connection: sqlite3.Connection = None):
-        if not db_connection:
-            db_connection = sqlite3.connect(":memory:") 
-            self._init_db(db_connection)
-        self.db_connection = db_connection
-    
-    def _init_db(self, db_connection: sqlite3.Connection):
-        cursor = db_connection.cursor()
-        cursor.execute("CREATE TABLE appointments (patient_name TEXT PRIMARY KEY, day TEXT, time TEXT)")
-        db_connection.commit()
 
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection = None):
