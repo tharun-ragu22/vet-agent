@@ -29,7 +29,7 @@ dataset = Dataset(
                 ),
                 HasMatchingSpan(
                     query={
-                        'has_attributes': {'gen_ai.tool.name': 'beef'}
+                        'has_attributes': {'gen_ai.tool.name': 'make_appointment'}
                     }
                 )
             ],
@@ -46,8 +46,8 @@ async def main():
 
     report.print()
 
-    if report.failed > 0:
-        print(f"\n❌ Evaluation failed with {report.failed} failure(s).")
+    if len(report.failures) > 0:
+        print(f"\n❌ Evaluation failed with {len(report.failures)} failure(s).")
         sys.exit(1)
     
     print("\n✅ All evaluations passed successfully.")
