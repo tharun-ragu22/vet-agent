@@ -3,6 +3,7 @@ import logfire
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import HasMatchingSpan
 from .local_agent import LocalAgent
+import sys
 
 # 1. Initialize local-only logfire
 logfire.configure(send_to_logfire=False)
@@ -28,7 +29,7 @@ dataset = Dataset(
                 ),
                 HasMatchingSpan(
                     query={
-                        'has_attributes': {'gen_ai.tool.name': 'make_appointment'}
+                        'has_attributes': {'gen_ai.tool.name': 'beef'}
                     }
                 )
             ],
@@ -44,5 +45,11 @@ async def main():
     report = await dataset.evaluate(run_agent_task)
 
     report.print()
+
+    if report.failed > 0:
+        print(f"\n❌ Evaluation failed with {report.failed} failure(s).")
+        sys.exit(1)
+    
+    print("\n✅ All evaluations passed successfully.")
 
 asyncio.run(main())
