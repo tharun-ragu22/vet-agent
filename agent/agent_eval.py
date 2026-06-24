@@ -46,8 +46,23 @@ async def main():
 
     report.print()
 
-    if len(report.failures) > 0:
-        print(f"\n❌ Evaluation failed with {len(report.failures)} failure(s).")
+    if report.failures:
+        print(f"\n💥 {len(report.failures)} task(s) crashed:")
+        for f in report.failures:
+            print(f"  - {f.name}: {f.exception_message}")
+        sys.exit(1)
+
+    failed_assertions = [
+        (case.name, name, result)
+        for case in report.cases
+        for name, result in case.assertions.items()
+        if result.value is False
+    ]
+
+    if failed_assertions:
+        print(f"\n❌ {len(failed_assertions)} assertion(s) failed:")
+        for case_name, assertion_name, result in failed_assertions:
+            print(f"  - [{case_name}] {assertion_name}: {result.source}")
         sys.exit(1)
     
     print("\n✅ All evaluations passed successfully.")

@@ -1,6 +1,7 @@
 from .agent_interface import IAgent
 from pydantic_ai import Agent, AgentRunResult
 from .models import gemma_model
+import sqlite3
 class LocalAgent(IAgent):
 
     _agent = Agent(
