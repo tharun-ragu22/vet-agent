@@ -1,6 +1,8 @@
-from .agent_interface import IAgent
-from pydantic_ai import Agent, AgentRunResult
+from agent.agent_interface import IAgent
+from pydantic_ai import Agent, AgentRunResult, RunContext
 from .models import google_model
+import sqlite3
+
 class ProdAgent(IAgent):
     
 
@@ -13,12 +15,33 @@ class ProdAgent(IAgent):
         This is all you need to do to when someone asks to make you an appointment, don't ask for any more information.
         """
     )
+    
+    def __init__(self, db_connection: sqlite3.Connection = None):
+        if not db_connection:
+            db_connection = sqlite3.connect(":memory:") 
+            self._init_db(db_connection)
+        self.db_connection = db_connection
+    
+    def _init_db(self, db_connection: sqlite3.Connection):
+        cursor = db_connection.cursor()
+        cursor.execute("CREATE TABLE appointments (patient_name TEXT PRIMARY KEY, day TEXT, time TEXT)")
+        db_connection.commit()
 
+    @staticmethod
+    def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection = None):
+        cursor = db_connection.cursor()
+        cursor.execute(
+            "INSERT INTO appointments (patient_name, day, time) VALUES (?, ?, ?)",
+            (patient_name, day, time)
+        )
+        db_connection.commit()
     
     @_agent.tool_plain
-    def make_appointment(number: int) -> str:
+    def make_appointment(patient_name: str, day: str, time: str) -> str:
         """Makes the appointment in the system"""
-        print( f'make_appointment: making appointment: {number}')
+        print(f'make_appointment: making appointment for {patient_name} at {day} {time}')
+        ProdAgent.make_appointment_impl(patient_name, day, time)
+
 
     @_agent.tool_plain
     def check_availability(number: int) -> bool:
