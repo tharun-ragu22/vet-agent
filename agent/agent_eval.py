@@ -29,7 +29,7 @@ dataset = Dataset(
                 ),
                 HasMatchingSpan(
                     query={
-                        'has_attributes': {'gen_ai.tool.name': 'bork'}
+                        'has_attributes': {'gen_ai.tool.name': 'make_appointment'}
                     }
                 )
             ],
