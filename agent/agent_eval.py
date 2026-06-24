@@ -1,17 +1,32 @@
 import asyncio
 import logfire
 from pydantic_evals import Case, Dataset
-from pydantic_evals.evaluators import HasMatchingSpan
+from dataclasses import dataclass
+from pydantic_evals.evaluators import HasMatchingSpan, Evaluator, EvaluatorContext
 from .local_agent import LocalAgent
 import sys
+import sqlite3
 
+
+connection = sqlite3.connect(":memory:", check_same_thread=False)
+cursor = connection.cursor()
+cursor.execute("CREATE TABLE IF NOT EXISTS appointments (patient_name TEXT PRIMARY KEY, day TEXT, time TEXT)")
+
+@dataclass
+class SimpleAppointment_RecordedInDB(Evaluator):
+    """Check if appointment was recorded in the db"""
+    def evaluate(self, ctx: EvaluatorContext) -> bool:
+        result = cursor.execute(f"SELECT * FROM appointments").fetchall()
+
+        return len(result) == 1
+    
 # 1. Initialize local-only logfire
 logfire.configure(send_to_logfire=False)
 
 # 2. Tell PydanticAI to send its spans to this local tracker
 logfire.instrument_pydantic_ai()
 
-test_agent = LocalAgent()
+test_agent = LocalAgent(connection)
 dataset = Dataset(
     name="veteranarian agent tests",
     cases=[
@@ -31,7 +46,8 @@ dataset = Dataset(
                     query={
                         'has_attributes': {'gen_ai.tool.name': 'make_appointment'}
                     }
-                )
+                ),
+                SimpleAppointment_RecordedInDB()
             ],
         ),
     ],

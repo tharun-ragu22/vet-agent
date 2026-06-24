@@ -1,9 +1,21 @@
+from dataclasses import dataclass
+
 from .agent_interface import IAgent
-from pydantic_ai import Agent, AgentRunResult
+from pydantic_ai import Agent, AgentRunResult, RunContext
 from .models import gemma_model
 import sqlite3
+
+@dataclass
+class LocalAgentDeps:
+    db_conn : sqlite3.Connection
 class LocalAgent(IAgent):
 
+    def __init__(self, db_connection: sqlite3.Connection = None):
+        if db_connection is None:
+            db_connection = sqlite3.connect(":memory:")
+        self.db_conn = db_connection
+        self.deps = LocalAgentDeps(db_connection)
+    
     _agent = Agent(
         model=gemma_model,
         system_prompt="""
@@ -14,11 +26,21 @@ class LocalAgent(IAgent):
         """
     )
 
+    @staticmethod
+    def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
+        cursor = db_connection.cursor()
+        cursor.execute(
+            "INSERT INTO appointments (patient_name, day, time) VALUES (?, ?, ?)",
+            (patient_name, day, time)
+        )
+        db_connection.commit()
+
     
-    @_agent.tool_plain
-    def make_appointment(number: int) -> str:
+    @_agent.tool
+    def make_appointment(ctx: RunContext[LocalAgentDeps], patient_name: str, day: str, time: str) -> str:
         """Makes the appointment in the system"""
-        print( f'make_appointment: making appointment: {number}')
+        print(f'make_appointment: making appointment for {patient_name} at {day} {time}')
+        LocalAgent.make_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
 
     @_agent.tool_plain
     def check_availability(number: int) -> bool:
@@ -28,7 +50,7 @@ class LocalAgent(IAgent):
 
     # 4. The run_agent execution wrapper
     async def run_agent(self, prompt: str) -> AgentRunResult[str]:
-        res = await self._agent.run(prompt)
+        res = await self._agent.run(prompt, deps = self.deps)
         return res
 
 
