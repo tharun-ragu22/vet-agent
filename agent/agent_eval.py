@@ -53,6 +53,9 @@ dataset = Dataset(
     ],
 )
 
+def mock_agent_task(inputs: str) -> str:
+    return inputs.upper()
+
 async def run_agent_task(inputs: str) -> str:
     return await test_agent.run_agent(inputs)
 
