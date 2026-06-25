@@ -12,7 +12,7 @@ import agent
 sys.modules['agent'] = agent
 
 # 3. NOW import your production code safely
-from agent.prod_agent import ProdAgent
+from agent.agent_interface import AgentBaseClass
 
 
 def test_make_appointment():
@@ -28,7 +28,7 @@ def test_make_appointment():
 
 
         # When the agent asks to make the appointment
-        ProdAgent.make_appointment_impl(patient_name, day, time, conn)
+        AgentBaseClass.make_appointment_impl(patient_name, day, time, conn)
 
         # Then the system records the appointment in persistent storage
         result = cursor.execute(f"SELECT * FROM appointments WHERE patient_name = '{patient_name}'").fetchall()
