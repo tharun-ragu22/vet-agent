@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  LOCAL_MODEL_URL: "http://localhost:11434/v1"
+  LOCAL_MODEL_NAME: "gemma4:latest"
+
 jobs:
   unit_tests:
     runs-on: ubuntu-latest
@@ -60,11 +64,9 @@ jobs:
           ollama serve &
           # Wait for Ollama to be ready
           sleep 5
-          ollama pull gemma4:latest # Choose the size based on runner memory
+          ollama pull $LOCAL_MODEL_NAME
 
       - name: Run agent evals
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          LOCAL_MODEL_URL: "http://localhost:11434/v1"
-          LOCAL_MODEL_NAME: "gemma4:e4b"
         run: uv run python -m agent.agent_eval
