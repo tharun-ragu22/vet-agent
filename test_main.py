@@ -5,7 +5,7 @@ from agent.mock_agent import MockAgent
 from main import app, GREETING_TEXT, get_agent
 
 def get_test_agent():
-    return MockAgent()
+    return MockAgent(None, None)
 
 # Initialize the FastAPI TestClient
 @pytest.fixture(scope='function')
