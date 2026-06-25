@@ -49,7 +49,6 @@ class AgentBaseClass(ABC):
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
         cursor = db_connection.cursor()
-        cursor
         
         cursor.execute(
             "INSERT INTO appointments (patient_name, day, time) VALUES (?, ?, ?)",
@@ -59,7 +58,15 @@ class AgentBaseClass(ABC):
     
     @staticmethod
     def check_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
-        return []
+        cursor = db_connection.cursor()
+        query = """
+        SELECT * FROM appointments 
+        WHERE patient_name = ?
+        AND day = ?
+        AND time = ?
+        """
+
+        return cursor.execute(query, (patient_name, day, time)).fetchall()       
     
     def make_appointment(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
         """Makes the appointment in the system"""
