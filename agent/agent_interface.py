@@ -35,7 +35,16 @@ class AgentBaseClass(ABC):
         self.deps.db_conn.commit()
     
     def _register_tools(self):
-        pass
+        @self._agent.tool
+        def make_appointment(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
+            """Makes the appointment in the system"""
+            self.make_appointment(ctx, patient_name, day, time)
+
+        @self._agent.tool_plain
+        def check_availability(number: int) -> bool:
+            """Checks if appointment is available"""
+            print(f'check_availability: checking slot {number}')
+            return True
 
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
@@ -54,6 +63,4 @@ class AgentBaseClass(ABC):
     async def run_agent(self, input: str):
         return await self._agent.run(input, deps=self.deps)
 
-    @abstractmethod
-    def _register_tools(self):
-        pass
+    
