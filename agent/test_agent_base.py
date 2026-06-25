@@ -35,4 +35,18 @@ def test_make_appointment():
 
         assert len(result) == 1
 
+def test_check_appointment_no_appointment_made_should_say_no():
+    # Given the user wants doesn't have an appointment
+    patient_name = 'beef'
+    day = '2026-01-01'
+    time = '10:30'
+    with sqlite3.connect(":memory:") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE appointments (patient_name TEXT PRIMARY KEY, day TEXT, time TEXT)")
+
+        # When the agent asks to make the appointment
+        result = AgentBaseClass.check_appointment_impl(patient_name, day, time, conn)
+
+        # Then the system tells them they have not appointment
+        assert len(result) == 0
       

@@ -49,11 +49,17 @@ class AgentBaseClass(ABC):
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
         cursor = db_connection.cursor()
+        cursor
+        
         cursor.execute(
             "INSERT INTO appointments (patient_name, day, time) VALUES (?, ?, ?)",
             (patient_name, day, time)
         )
         db_connection.commit()
+    
+    @staticmethod
+    def check_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
+        return []
     
     def make_appointment(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
         """Makes the appointment in the system"""
