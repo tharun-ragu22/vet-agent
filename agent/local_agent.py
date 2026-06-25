@@ -1,52 +1,35 @@
 from dataclasses import dataclass
 
-from .agent_interface import IAgent, AGENT_SYSTEM_PROMPT
+from .agent_interface import AgentBaseClass, AGENT_SYSTEM_PROMPT, AgentDeps
 from pydantic_ai import Agent, AgentRunResult, RunContext
 from .models import gemma_model
 import sqlite3
 
+
 @dataclass
 class LocalAgentDeps:
-    db_conn : sqlite3.Connection
-class LocalAgent(IAgent):
+    db_conn: sqlite3.Connection
+
+
+class LocalAgent(AgentBaseClass):
 
     def __init__(self, db_connection: sqlite3.Connection = None):
-        if db_connection is None:
-            db_connection = sqlite3.connect(":memory:")
-        self.db_conn = db_connection
-        self.deps = LocalAgentDeps(db_connection)
-    
-    _agent = Agent(
-        model=gemma_model,
-        system_prompt=AGENT_SYSTEM_PROMPT
-    )
+        super().__init__(gemma_model, db_connection)
 
-    @staticmethod
-    def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
-        cursor = db_connection.cursor()
-        cursor.execute(
-            "INSERT INTO appointments (patient_name, day, time) VALUES (?, ?, ?)",
-            (patient_name, day, time)
-        )
-        db_connection.commit()
+
+    def _register_tools(self):
+        @self._agent.tool
+        def make_appointment(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
+            """Makes the appointment in the system"""
+            self.make_appointment(ctx, patient_name, day, time)
+
+        @self._agent.tool_plain
+        def check_availability(number: int) -> bool:
+            """Checks if appointment is available"""
+            print(f'check_availability: checking slot {number}')
+            return True
 
     
-    @_agent.tool
-    def make_appointment(ctx: RunContext[LocalAgentDeps], patient_name: str, day: str, time: str) -> str:
-        """Makes the appointment in the system"""
-        print(f'make_appointment: making appointment for {patient_name} at {day} {time}')
-        LocalAgent.make_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
-
-    @_agent.tool_plain
-    def check_availability(number: int) -> bool:
-        """Checks if appointment is available"""
-        print(f'check_availability: appointment for {number}')
-        return True
-
-    # 4. The run_agent execution wrapper
-    async def run_agent(self, prompt: str) -> AgentRunResult[str]:
-        res = await self._agent.run(prompt, deps = self.deps)
-        return res
 
 
 if __name__ == "__main__":
