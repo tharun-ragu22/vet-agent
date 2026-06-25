@@ -16,19 +16,6 @@ class LocalAgent(AgentBaseClass):
     def __init__(self, db_connection: sqlite3.Connection = None):
         super().__init__(gemma_model, db_connection)
 
-
-    def _register_tools(self):
-        @self._agent.tool
-        def make_appointment(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
-            """Makes the appointment in the system"""
-            self.make_appointment(ctx, patient_name, day, time)
-
-        @self._agent.tool_plain
-        def check_availability(number: int) -> bool:
-            """Checks if appointment is available"""
-            print(f'check_availability: checking slot {number}')
-            return True
-
     
 
 
