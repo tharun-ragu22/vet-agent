@@ -65,6 +65,6 @@ jobs:
       - name: Run agent evals
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          LOCAL_MODEL_URL: "https://usual-lake-equal.ngrok-free.dev/v1"
+          LOCAL_MODEL_URL: "http://localhost:11434/v1"
           LOCAL_MODEL_NAME: "gemma4:e4b"
         run: uv run python -m agent.agent_eval
