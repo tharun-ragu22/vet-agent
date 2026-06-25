@@ -1,9 +1,7 @@
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.providers.ollama import OllamaProvider
-from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.models.google import GoogleModel
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 

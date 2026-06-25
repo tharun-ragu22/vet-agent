@@ -1,5 +1,4 @@
 from .agent_interface import AgentBaseClass
-from pydantic_ai import AgentRunResult
 import asyncio
 
 class MockOutput():

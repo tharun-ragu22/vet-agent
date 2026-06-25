@@ -1,5 +1,4 @@
-from agent.agent_interface import AgentBaseClass, AGENT_SYSTEM_PROMPT, AgentDeps
-from pydantic_ai import Agent, AgentRunResult, RunContext
+from agent.agent_interface import AgentBaseClass
 from .models import google_model
 import sqlite3
 from dataclasses import dataclass
@@ -14,10 +13,6 @@ class ProdAgent(AgentBaseClass):
 
     def __init__(self, db_connection: sqlite3.Connection = None):
         super().__init__(google_model, db_connection)
-
-
-    
-
 
 if __name__ == "__main__":
     test_agent = ProdAgent()

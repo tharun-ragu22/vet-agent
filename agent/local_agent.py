@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
-from .agent_interface import AgentBaseClass, AGENT_SYSTEM_PROMPT, AgentDeps
-from pydantic_ai import Agent, AgentRunResult, RunContext
+from .agent_interface import AgentBaseClass
 from .models import gemma_model
 import sqlite3
 
