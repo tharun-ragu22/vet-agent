@@ -1,14 +1,25 @@
 from abc import ABC
 from dataclasses import dataclass
 import sqlite3
+from typing import Any
 
 from pydantic_ai import Agent, RunContext
 
 AGENT_SYSTEM_PROMPT = """
     You are a receptionist agent for a veteranarian office. You will use local tools whenever you can.
-        
-    You must check if an appointment is available before making it. If the appointment is available, you should make the appointment.
-    This is all you need to do to when someone asks to make you an appointment, don't ask for any more information.
+
+    These are your responsibilities:
+    1. Confirming Appointments
+    If someone asks you to confirm an appointment with them, use local tools to look through the database to check if the appointment
+    exists. You only need a name to check availability. Filter through the results yourself to see if the availability exists.
+
+    2. Making Appointments
+    If someone asks you to make an appointment with them.You must check if an appointment is available before making it. 
+    If the appointment day and time they are requesting is currently recorded in the database, then you must tell them this. Do NOT proceed with making the appointment.
+    If the appointment is available, you should make the appointment.
+    
+
+    If you need more information to use a tool, make sure to remember the current information you have for a tool's usage, and only ask for what you need
     """
 @dataclass
 class AgentDeps:
@@ -40,11 +51,10 @@ class AgentBaseClass(ABC):
             """Makes the appointment in the system"""
             self.make_appointment(ctx, patient_name, day, time)
 
-        @self._agent.tool_plain
-        def check_availability(number: int) -> bool:
+        @self._agent.tool
+        def check_availability(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> list[Any]:
             """Checks if appointment is available"""
-            print(f'check_availability: checking slot {number}')
-            return True
+            return self.check_availability(ctx, patient_name, day, time)
 
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
@@ -57,21 +67,26 @@ class AgentBaseClass(ABC):
         db_connection.commit()
     
     @staticmethod
-    def check_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
+    def check_appointment_impl(patient_name: str, day: str | None, time: str | None, db_connection: sqlite3.Connection):
         cursor = db_connection.cursor()
-        query = """
+        query = f"""
         SELECT * FROM appointments 
-        WHERE patient_name = ?
-        AND day = ?
-        AND time = ?
+        WHERE lower(patient_name) = lower(?1)
+        AND (?2 IS NULL OR lower(day) = lower(?2))
+        AND (?3 IS NULL OR lower(time) = lower(?3))
         """
 
-        return cursor.execute(query, (patient_name, day, time)).fetchall()       
+        return cursor.execute(query, {'1': patient_name, '2': day, '3': time}).fetchall()       
     
     def make_appointment(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
         """Makes the appointment in the system"""
         print(f'make_appointment: making appointment for {patient_name} at {day} {time}')
         AgentBaseClass.make_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
+    
+    def check_availability(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
+        """Makes the appointment in the system"""
+        print(f'check_appointment: checking appointment for {patient_name} at {day} {time}')
+        return AgentBaseClass.check_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
 
     async def run_agent(self, input: str):
         return await self._agent.run(input, deps=self.deps)
