@@ -1,16 +1,22 @@
-from fastapi import FastAPI, Form, Response, Depends
+from fastapi import FastAPI, Form, Response, Depends, Request
 from twilio.twiml.voice_response import VoiceResponse
 from agent.agent_interface import AgentBaseClass
 from agent.prod_agent import ProdAgent
+from contextlib import asynccontextmanager
 
-app = FastAPI()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.agent = ProdAgent()
+    yield
 
-def get_agent() -> AgentBaseClass:
-    return ProdAgent()
+def get_agent(request: Request) -> AgentBaseClass:
+    return request.app.state.agent
 
+app = FastAPI(lifespan=lifespan)
 
 GREETING_TEXT = "Please say something after the beep."
+
 
 
 @app.post("/voice")

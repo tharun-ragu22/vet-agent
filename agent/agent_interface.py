@@ -29,7 +29,7 @@ class AgentBaseClass(ABC):
     def __init__(self, model, db_connection):
         self.model = model
         if db_connection is None:
-            db_connection = sqlite3.connect(":memory:")
+            db_connection = sqlite3.connect(":memory:", check_same_thread = False)
         self.db_conn = db_connection
         self.deps = AgentDeps(db_connection)
         self._init_db()
