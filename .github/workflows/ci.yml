@@ -72,7 +72,8 @@ jobs:
         run: |
           for file in agent/eval*; do
             if [ -f "$file" ]; then
-              filename_without_ext="${file%%.*}"
+              just_file="${file##*/}"
+              filename_without_ext="${just_file%%.*}"
               echo "Running eval for $filename_without_ext"
               uv run python -m agent.$filename_without_ext
             fi
