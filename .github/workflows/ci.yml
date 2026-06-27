@@ -44,16 +44,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: get eval files
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: |
-          for file in agent/eval*; do
-            if [ -f $"file"]; then
-              echo "Running eval for $file"
-            fi
-          done
-
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
@@ -81,8 +71,10 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           for file in agent/eval*; do
-            if [ -f $"file"]; then
-              echo "Running eval for $file"
-              uv run python -m agent.$file
+            if [ -f "$file" ]; then
+              filename_without_ext="${file%%.*}"
+              echo "Running eval for $filename_without_ext"
+              uv run python -m agent.$filename_without_ext
+            fi
           done
           
