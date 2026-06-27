@@ -2,9 +2,10 @@ import asyncio
 import logfire
 from pydantic_evals import Case, Dataset
 from dataclasses import dataclass
-from pydantic_evals.evaluators import HasMatchingSpan, Evaluator, EvaluatorContext
+from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext
 from .local_agent import LocalAgent
 import sys
+import json
 import sqlite3
 
 
@@ -36,6 +37,28 @@ class ParseAppointmentNotMade(Evaluator):
                     {"has_attributes": {"gen_ai.tool.name": "make_appointment"}},
                 ]
             }
+        )
+
+@dataclass
+class CheckAvailability_NoAppointmentsFound(Evaluator):
+    def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
+        check_call = ctx.span_tree.find(
+            {
+                "and_": [
+                    {"name_equals": "running tool"},
+                    {"has_attributes": {"gen_ai.tool.name": "check_availability"}},
+                ]
+            }
+        )
+        if not check_call:
+            return False
+        
+        print('check call attrs:', check_call[0].attributes)
+        tool_result = json.loads(check_call[0].attributes.get('tool_response'))
+        
+        return EvaluationReason(
+            value=len(tool_result) == 0,
+            reason="got to end"
         )
     
 # 1. Initialize local-only logfire
@@ -80,6 +103,7 @@ dataset = Dataset(
                         'has_attributes': {'gen_ai.tool.name': 'check_availability'}
                     }
                 ),
+                CheckAvailability_NoAppointmentsFound(),
                 ParseAppointmentNotMade(),
             ],
         ),
@@ -97,7 +121,7 @@ async def main():
 
     report = await dataset.evaluate(run_agent_task, max_concurrency=1)
 
-    report.print()
+    report.print(include_reasons=True)
 
     if report.failures:
         print(f"\n💥 {len(report.failures)} task(s) crashed:")

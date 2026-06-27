@@ -17,6 +17,7 @@ AGENT_SYSTEM_PROMPT = """
     If someone asks you to make an appointment with them.You must check if an appointment is available before making it. 
     If the appointment day and time they are requesting is currently recorded in the database, then you must tell them this. Do NOT proceed with making the appointment.
     If the appointment is available, you should make the appointment.
+    If you have all the information you need, do NOT ask them again to confirm that they want to book that appointment, just do it.
     
 
     If you need more information to use a tool, make sure to remember the current information you have for a tool's usage, and only ask for what you need
