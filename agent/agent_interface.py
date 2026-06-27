@@ -89,7 +89,7 @@ class AgentBaseClass(ABC):
         print(f'check_appointment: checking appointment for {patient_name} at {day} {time}')
         return AgentBaseClass.check_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
 
-    async def run_agent(self, input: str):
-        return await self._agent.run(input, deps=self.deps)
+    async def run_agent(self, input: str, message_history = None):
+        return await self._agent.run(input, deps=self.deps, message_history=message_history)
 
     
