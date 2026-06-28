@@ -75,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false 
       matrix:
-        eval_name: ${{ fromJson(needs:generate-matrix.outputs.matrix) }}
+        eval_name: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
