@@ -36,8 +36,46 @@ jobs:
         run: |
           uv run pytest -v
 
-  agent_evals:
+  generate-matrix:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps: set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Matrix Output
+        id: set-matrix
+        run: |
+          # Initialize an empty JSON array string
+          FILES_JSON="["
+          
+          for file in agent/eval*; do
+            if [ -f "$file" ]; then
+              base_name=$(basename "$file")
+              clean_name="${base_name%%.*}"
+              
+              # Append the clean name to our JSON string safely
+              FILES_JSON="${FILES_JSON}\"${clean_name}\","
+            fi
+          done
+          
+          # Remove the trailing comma (if files were found) and close the array
+          FILES_JSON=$(echo "$FILES_JSON" | sed 's/,$//')
+          FILES_JSON="${FILES_JSON}]"
+          
+          echo "Generated JSON: $FILES_JSON"
+          
+          # Set the output for the next job to use
+          echo "matrix=${FILES_JSON}" >> $GITHUB_OUTPUT
+
+  agent_evals_setup:
+    needs: generate-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false 
+      matrix:
+        eval_name: ${{ fromJson(needs:generate-matrix.outputs.matrix) }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -66,16 +104,9 @@ jobs:
           sleep 5
           ollama pull $LOCAL_MODEL_NAME
 
-      - name: Run agent evals
+      - name: Run agent evals for ${{ matrix.eval_name }}
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
-          for file in agent/eval*; do
-            if [ -f "$file" ]; then
-              just_file="${file##*/}"
-              filename_without_ext="${just_file%%.*}"
-              echo "Running eval for $filename_without_ext"
-              uv run python -m agent.$filename_without_ext
-            fi
-          done
+          uv run python -m agent.${{ matrix.eval_name}}
           
