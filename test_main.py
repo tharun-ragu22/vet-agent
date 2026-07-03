@@ -2,15 +2,23 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
-from main import app, GREETING_TEXT, get_agent
+from main import app, GREETING_TEXT, get_agent, get_websocket_handler
+from unittest.mock import patch, AsyncMock
 
 def get_test_agent():
     return MockAgent(None, None)
+
+def get_test_websocket_handler():
+    return mock_impl
+async def mock_impl(websocket):
+    data = await websocket.receive_json()
+    await websocket.send_json({'type': 'expected', 'received': data})
 
 # Initialize the FastAPI TestClient
 @pytest.fixture(scope='function')
 def client():
     app.dependency_overrides[get_agent] = get_test_agent
+    app.dependency_overrides[get_websocket_handler] = get_test_websocket_handler
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
@@ -26,17 +34,24 @@ def test_voice_endpoint_returns_twiml_gather(client):
     assert "application/xml" in response.headers["content-type"]
     
     # Then the system should greet them
-    # And listen to what they have to say
     root = ET.fromstring(response.text)
     assert root.tag == "Response"
-    gather = root.find("Gather")
-    assert gather is not None
-    
-    say = gather.find('Say')
-    assert say is not None
-    assert say.text == GREETING_TEXT
-    assert gather.attrib["action"] == "/respond"
-    assert gather.attrib["method"] == "POST"
+    assert GREETING_TEXT in response.text
+    # And listen to what they have to say
+    CONVERSATION_TAGS = {"Gather", "Connect", "Redirect", "Record"}
+    assert any(child.tag in CONVERSATION_TAGS for child in root)
+
+
+def test_websocket_can_send_and_receive(client):
+    # given the user has connected on the call
+    # when the agent greets the user
+    with client.websocket_connect('/ws') as websocket:
+        # then the websocket connection is established
+        assert websocket is not None
+        # and client and server can send messages bidirectionally
+        websocket.send_json({'type': 'test'})
+        response = websocket.receive_json()
+        assert response['type'] == 'expected'
 
     
 

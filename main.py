@@ -1,8 +1,13 @@
-from fastapi import FastAPI, Form, Response, Depends, Request
+from fastapi import FastAPI, Form, Response, Depends, Request, WebSocket
 from twilio.twiml.voice_response import VoiceResponse
 from agent.agent_interface import AgentBaseClass
 from agent.prod_agent import ProdAgent
 from contextlib import asynccontextmanager
+import uvicorn
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 
 @asynccontextmanager
@@ -15,20 +20,43 @@ def get_agent(request: Request) -> AgentBaseClass:
 
 app = FastAPI(lifespan=lifespan)
 
-GREETING_TEXT = "Please say something after the beep."
+GREETING_TEXT = "Hi! I'm an AI agent. How can I help?"
+PORT=8000
+DOMAIN = os.getenv('NGROK_URL')
+WS_URL = f"wss://{DOMAIN}/ws"
 
-
+sessions = {}
 
 @app.post("/voice")
-async def voice():
-    """Triggered when someone dials your Twilio number."""
-    response = VoiceResponse()
+async def twiml_endpoint():
+    """Endpoint that returns TwiML for Twilio to connect to the WebSocket"""
+    xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+      <Connect>
+        <ConversationRelay url="{WS_URL}" welcomeGreeting="{GREETING_TEXT}" ttsProvider="ElevenLabs" voice="FGY2WhTYpPnrIDTdsKH5" />
+      </Connect>
+    </Response>"""
+    
+    return Response(content=xml_response, media_type="application/xml")
 
-    # Instruct Twilio to listen for speech and send it to our /respond endpoint
-    gather = response.gather(input="speech", action="/respond", method="POST")
-    gather.say(GREETING_TEXT)
+def get_websocket_handler():
+    return websocket_handler
 
-    return Response(content=str(response), media_type="application/xml")
+async def websocket_handler(websocket: WebSocket):
+    pass
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websocket_handler)):
+    """WebSocket endpoint for real-time communication"""
+    await websocket.accept()
+
+    await handler(websocket)
+                
+    # except WebSocketDisconnect:
+    #     print("WebSocket connection closed")
+    #     if call_sid:
+    #         sessions.pop(call_sid, None)
 
 
 @app.post("/respond")
@@ -56,3 +84,7 @@ async def respond(
     gather.say(ret.output)
 
     return Response(content=str(response), media_type="application/xml")
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    print(f"Server running at http://localhost:{PORT} and {WS_URL}")
