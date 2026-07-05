@@ -95,8 +95,8 @@ class AgentBaseClass(ABC):
         result = await self._agent.run(input, deps=self.deps, message_history=message_history)
         return result
     
-    async def run_agent_stream(self, input: str, message_history=None):
-        async with self._agent.run_stream(input, deps=self.deps, message_history=message_history) as result:
+    async def run_agent_stream(self, input: str):
+        async with self._agent.run_stream(input, deps=self.deps) as result:
             async for text in result.stream_text(delta=True):                  
                 logfire.info(CHUNK_ALERT)
                 yield text
