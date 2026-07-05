@@ -99,6 +99,6 @@ class AgentBaseClass(ABC):
         async with self._agent.run_stream(input, deps=self.deps, message_history=message_history) as result:
             async for text in result.stream_text(delta=True):                  
                 logfire.info(CHUNK_ALERT)
-                yield text, result.all_messages()
+                yield text
 
     
