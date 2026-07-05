@@ -2,8 +2,10 @@ from abc import ABC
 from dataclasses import dataclass
 import sqlite3
 from typing import Any
-
+import logfire
 from pydantic_ai import Agent, RunContext
+
+CHUNK_ALERT = 'chunk_uploaded'
 
 AGENT_SYSTEM_PROMPT = """
     You are a receptionist agent for a veteranarian office. You will use local tools whenever you can.
@@ -11,7 +13,7 @@ AGENT_SYSTEM_PROMPT = """
     These are your responsibilities:
     1. Confirming Appointments
     If someone asks you to confirm an appointment with them, use local tools to look through the database to check if the appointment
-    exists. You only need a name to check availability. Filter through the results yourself to see if the availability exists.
+    exists. You only need a name to check availability. Filter through the results yourself to see if the availability exists. Don't just say you will do it.
 
     2. Making Appointments
     If someone asks you to make an appointment with them.You must check if an appointment is available before making it. 
@@ -90,6 +92,13 @@ class AgentBaseClass(ABC):
         return AgentBaseClass.check_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
 
     async def run_agent(self, input: str, message_history = None):
-        return await self._agent.run(input, deps=self.deps, message_history=message_history)
+        result = await self._agent.run(input, deps=self.deps, message_history=message_history)
+        return result
+    
+    async def run_agent_stream(self, input: str, message_history=None):
+        async with self._agent.run_stream(input, deps=self.deps, message_history=message_history) as result:
+            async for text in result.stream_text(delta=True):                  
+                logfire.info(CHUNK_ALERT)
+                yield text, result.all_messages()
 
     

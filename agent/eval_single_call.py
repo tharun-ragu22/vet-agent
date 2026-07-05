@@ -4,10 +4,10 @@ from pydantic_evals import Case, Dataset
 from dataclasses import dataclass
 from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext
 from .local_agent import LocalAgent
+from .agent_interface import CHUNK_ALERT
 import sys
 import json
 import sqlite3
-
 
 connection = sqlite3.connect(":memory:", check_same_thread=False)
 cursor = connection.cursor()
@@ -18,6 +18,38 @@ DROP TABLE IF EXISTS appointments;
 {CREATE_TABLE_COMMAND}
 """
 cursor.executescript(CREATE_TABLE_COMMAND)
+
+
+@dataclass
+class CheckSpreadOfTokenResponses(Evaluator):
+    min_spread_milliseconds: int
+
+    def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
+        span_tree = ctx.span_tree
+
+        # Find the first LLM response span
+        llm_spans = span_tree.find(lambda node: "chat " in node.name.lower())
+
+        if not llm_spans:
+            return EvaluationReason(value=False, reason="No LLM span found")
+
+        print("=================chat spans========================")
+        for span in llm_spans:
+            print(span.name, span.start_timestamp, span.duration)
+
+        chunk_events = span_tree.find(lambda node: node.name == CHUNK_ALERT)
+        if not chunk_events:
+            return EvaluationReason(value=False, reason=f"No {CHUNK_ALERT} span found")
+        
+        chunk_events = sorted(chunk_events, key = lambda chunk_node : chunk_node.start_timestamp)
+        spread = (chunk_events[-1].start_timestamp - chunk_events[0].start_timestamp).total_seconds() * 1000
+
+        passed = spread > self.min_spread_milliseconds
+        return EvaluationReason(
+            value=passed,
+            reason=f"First LLM span outputted {spread:.1f}ms before last one, {'above' if passed else 'below'} threshold of {self.min_spread_milliseconds}ms",
+        )
+
 
 @dataclass
 class SimpleAppointment_RecordedInDB(Evaluator):
@@ -39,6 +71,7 @@ class ParseAppointmentNotMade(Evaluator):
             }
         )
 
+
 @dataclass
 class CheckAvailability_NoAppointmentsFound(Evaluator):
     def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
@@ -51,16 +84,14 @@ class CheckAvailability_NoAppointmentsFound(Evaluator):
             }
         )
         if not check_call:
-            return False
-        
-        print('check call attrs:', check_call[0].attributes)
-        tool_result = json.loads(check_call[0].attributes.get('tool_response'))
-        
-        return EvaluationReason(
-            value=len(tool_result) == 0,
-            reason="got to end"
-        )
-    
+            return EvaluationReason(value = False, reason='no check calls found')
+
+        print("check call attrs:", check_call[0].attributes)
+        tool_result = json.loads(check_call[0].attributes.get("tool_response"))
+
+        return EvaluationReason(value=len(tool_result) == 0, reason="got to end")
+
+
 # 1. Initialize local-only logfire
 logfire.configure(send_to_logfire=False)
 
@@ -79,16 +110,12 @@ dataset = Dataset(
             """,
             evaluators=[
                 HasMatchingSpan(
-                    query={
-                        'has_attributes': {'gen_ai.tool.name': 'check_availability'}
-                    }
+                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
                 ),
                 HasMatchingSpan(
-                    query={
-                        'has_attributes': {'gen_ai.tool.name': 'make_appointment'}
-                    }
+                    query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
                 ),
-                SimpleAppointment_RecordedInDB()
+                SimpleAppointment_RecordedInDB(),
             ],
         ),
         Case(
@@ -99,10 +126,9 @@ dataset = Dataset(
             """,
             evaluators=[
                 HasMatchingSpan(
-                    query={
-                        'has_attributes': {'gen_ai.tool.name': 'check_availability'}
-                    }
+                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
                 ),
+                CheckSpreadOfTokenResponses(min_spread_milliseconds=200),
                 CheckAvailability_NoAppointmentsFound(),
                 ParseAppointmentNotMade(),
             ],
@@ -115,7 +141,8 @@ def mock_agent_task(inputs: str) -> str:
 
 async def run_agent_task(inputs: str) -> str:
     cursor.executescript(RESET_TABLE_COMMAND)
-    return await test_agent.run_agent(inputs)
+    chunks = [chunk async for chunk in test_agent.run_agent_stream(inputs)]
+    return "".join(chunks)
 
 async def main():
 
