@@ -21,37 +21,6 @@ cursor.executescript(CREATE_TABLE_COMMAND)
 
 
 @dataclass
-class CheckSpreadOfTokenResponses(Evaluator):
-    min_spread_milliseconds: int
-
-    def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
-        span_tree = ctx.span_tree
-
-        # Find the first LLM response span
-        llm_spans = span_tree.find(lambda node: "chat " in node.name.lower())
-
-        if not llm_spans:
-            return EvaluationReason(value=False, reason="No LLM span found")
-
-        print("=================chat spans========================")
-        for span in llm_spans:
-            print(span.name, span.start_timestamp, span.duration)
-
-        chunk_events = span_tree.find(lambda node: node.name == CHUNK_ALERT)
-        if not chunk_events:
-            return EvaluationReason(value=False, reason=f"No {CHUNK_ALERT} span found")
-        
-        chunk_events = sorted(chunk_events, key = lambda chunk_node : chunk_node.start_timestamp)
-        spread = (chunk_events[-1].start_timestamp - chunk_events[0].start_timestamp).total_seconds() * 1000
-
-        passed = spread > self.min_spread_milliseconds
-        return EvaluationReason(
-            value=passed,
-            reason=f"First LLM span outputted {spread:.1f}ms before last one, {'above' if passed else 'below'} threshold of {self.min_spread_milliseconds}ms",
-        )
-
-
-@dataclass
 class SimpleAppointment_RecordedInDB(Evaluator):
     """Check if appointment was recorded in the db"""
     def evaluate(self, ctx: EvaluatorContext) -> bool:
@@ -128,7 +97,6 @@ dataset = Dataset(
                 HasMatchingSpan(
                     query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
                 ),
-                CheckSpreadOfTokenResponses(min_spread_milliseconds=200),
                 CheckAvailability_NoAppointmentsFound(),
                 ParseAppointmentNotMade(),
             ],
@@ -141,8 +109,7 @@ def mock_agent_task(inputs: str) -> str:
 
 async def run_agent_task(inputs: str) -> str:
     cursor.executescript(RESET_TABLE_COMMAND)
-    chunks = [chunk async for chunk in test_agent.run_agent_stream(inputs)]
-    return "".join(chunks)
+    return await test_agent.run_agent(inputs)
 
 async def main():
 

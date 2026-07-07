@@ -97,9 +97,12 @@ async def multi_turn_task(inputs: ConversationInputs) -> str:
     result = ""
 
     for user_message in inputs.turns:
-        result = "".join([chunk async for chunk in test_agent.run_agent_stream(user_message)])
+        result = await test_agent.run_agent(
+            user_message
+        )
+        last_output = result.output
 
-    return result
+    return last_output
 
 async def main():
 
