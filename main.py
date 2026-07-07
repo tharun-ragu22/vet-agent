@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Form, Response, Depends, Request, WebSocket
+from fastapi import FastAPI, Form, Response, Depends, WebSocket, WebSocketDisconnect
 from twilio.twiml.voice_response import VoiceResponse
-from agent.agent_interface import AgentBaseClass
+from agent.agent_interface import AgentBaseClass, AGENT_SYSTEM_PROMPT
 from agent.prod_agent import ProdAgent
 from contextlib import asynccontextmanager
 import uvicorn
+import json
 from dotenv import load_dotenv
 import os
 
@@ -15,8 +16,8 @@ async def lifespan(app: FastAPI):
     app.state.agent = ProdAgent()
     yield
 
-def get_agent(request: Request) -> AgentBaseClass:
-    return request.app.state.agent
+def get_agent(websocket: WebSocket) -> AgentBaseClass:
+    return websocket.app.state.agent
 
 app = FastAPI(lifespan=lifespan)
 
@@ -42,21 +43,61 @@ async def twiml_endpoint():
 def get_websocket_handler():
     return websocket_handler
 
-async def websocket_handler(websocket: WebSocket):
-    pass
+
+
+async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
+    def ai_response(message) -> str:
+        return agent.run_agent(message)
+    
+    all_sid = None
+    
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            print('message:\n', message)
+            
+            if message["type"] == "setup":
+                call_sid = message["callSid"]
+                print(f"Setup for call: {call_sid}")
+                websocket.call_sid = call_sid
+                sessions[call_sid] = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
+                
+            elif message["type"] == "prompt":
+                print(f"Processing prompt: {message['voicePrompt']}")
+                conversation = sessions[websocket.call_sid]
+                conversation.append({"role": "user", "content": message["voicePrompt"]})
+                
+                response = ai_response(message['voicePrompt'])
+                conversation.append({"role": "assistant", "content": response})
+                
+                await websocket.send_text(
+                    json.dumps({
+                        "type": "text",
+                        "token": response,
+                        "last": True
+                    })
+                )
+                print(f"Sent response: {response}")
+                
+            elif message["type"] == "interrupt":
+                print("Handling interruption.")
+                
+            else:
+                print(f"Unknown message type received: {message['type']}")
+                
+    except WebSocketDisconnect:
+        print("WebSocket connection closed")
+        if call_sid:
+            sessions.pop(call_sid, None)
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websocket_handler)):
+async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websocket_handler), agent : AgentBaseClass = Depends(get_agent)):
     """WebSocket endpoint for real-time communication"""
     await websocket.accept()
 
-    await handler(websocket)
-                
-    # except WebSocketDisconnect:
-    #     print("WebSocket connection closed")
-    #     if call_sid:
-    #         sessions.pop(call_sid, None)
+    await handler(websocket, agent)
 
 
 @app.post("/respond")
