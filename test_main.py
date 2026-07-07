@@ -3,14 +3,14 @@ import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
 from main import app, GREETING_TEXT, get_agent, get_websocket_handler
-from unittest.mock import patch, AsyncMock
 
 def get_test_agent():
     return MockAgent(None, None)
 
 def get_test_websocket_handler():
-    return mock_impl
-async def mock_impl(websocket):
+    return mock_websocket_handler
+
+async def mock_websocket_handler(websocket, agent):
     data = await websocket.receive_json()
     await websocket.send_json({'type': 'expected', 'received': data})
 
