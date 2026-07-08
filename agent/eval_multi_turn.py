@@ -103,7 +103,7 @@ dataset = Dataset(
             ]
         ),
         Case(
-            name="provide_missing_info",
+            name="make_appointment_provide_missing_name",
             inputs=ConversationInputs(turns=[
                 "Can you make an appointment for my dog today at 2pm?",
                 "His name is Jordan",
@@ -111,6 +111,30 @@ dataset = Dataset(
             evaluators=[
                 HasMatchingSpan(
                     query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
+                ),
+            ]
+        ),
+        Case(
+            name="make_appointment_provide_missing_time",
+            inputs=ConversationInputs(turns=[
+                "Can you make an appointment for my dog Jake today?",
+                "At 3pm please",
+            ]),
+            evaluators=[
+                HasMatchingSpan(
+                    query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
+                ),
+            ]
+        ),
+        Case(
+            name="check_appointment_provide_missing_time",
+            inputs=ConversationInputs(turns=[
+                "Can you check if my dog Jake has an appointment for today?",
+                "At 3pm",
+            ]),
+            evaluators=[
+                HasMatchingSpan(
+                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
                 ),
             ]
         ),
