@@ -109,4 +109,9 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           uv run python -m agent.${{ matrix.eval_name}}
-          
+  agent-eval-pass:
+    needs: agent_evals
+    runs-on: ubuntu-latest
+    steps:
+      - name: All evals passed
+        run: echo "All agent evals passed successfully!"

@@ -94,15 +94,12 @@ dataset = Dataset(
 )
 
 async def multi_turn_task(inputs: ConversationInputs) -> str:
-    message_history: list[ModelMessage] = []
-    last_output = ""
+    result = ""
 
     for user_message in inputs.turns:
         result = await test_agent.run_agent(
-            user_message,
-            message_history=message_history,
+            user_message
         )
-        message_history = result.all_messages()
         last_output = result.output
 
     return last_output

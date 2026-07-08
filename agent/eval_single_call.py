@@ -4,10 +4,10 @@ from pydantic_evals import Case, Dataset
 from dataclasses import dataclass
 from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext
 from .local_agent import LocalAgent
+from .agent_interface import CHUNK_ALERT
 import sys
 import json
 import sqlite3
-
 
 connection = sqlite3.connect(":memory:", check_same_thread=False)
 cursor = connection.cursor()
@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS appointments;
 {CREATE_TABLE_COMMAND}
 """
 cursor.executescript(CREATE_TABLE_COMMAND)
+
 
 @dataclass
 class SimpleAppointment_RecordedInDB(Evaluator):
@@ -39,6 +40,7 @@ class ParseAppointmentNotMade(Evaluator):
             }
         )
 
+
 @dataclass
 class CheckAvailability_NoAppointmentsFound(Evaluator):
     def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
@@ -51,16 +53,14 @@ class CheckAvailability_NoAppointmentsFound(Evaluator):
             }
         )
         if not check_call:
-            return False
-        
-        print('check call attrs:', check_call[0].attributes)
-        tool_result = json.loads(check_call[0].attributes.get('tool_response'))
-        
-        return EvaluationReason(
-            value=len(tool_result) == 0,
-            reason="got to end"
-        )
-    
+            return EvaluationReason(value = False, reason='no check calls found')
+
+        print("check call attrs:", check_call[0].attributes)
+        tool_result = json.loads(check_call[0].attributes.get("tool_response"))
+
+        return EvaluationReason(value=len(tool_result) == 0, reason="got to end")
+
+
 # 1. Initialize local-only logfire
 logfire.configure(send_to_logfire=False)
 
@@ -79,16 +79,12 @@ dataset = Dataset(
             """,
             evaluators=[
                 HasMatchingSpan(
-                    query={
-                        'has_attributes': {'gen_ai.tool.name': 'check_availability'}
-                    }
+                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
                 ),
                 HasMatchingSpan(
-                    query={
-                        'has_attributes': {'gen_ai.tool.name': 'make_appointment'}
-                    }
+                    query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
                 ),
-                SimpleAppointment_RecordedInDB()
+                SimpleAppointment_RecordedInDB(),
             ],
         ),
         Case(
@@ -99,9 +95,7 @@ dataset = Dataset(
             """,
             evaluators=[
                 HasMatchingSpan(
-                    query={
-                        'has_attributes': {'gen_ai.tool.name': 'check_availability'}
-                    }
+                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
                 ),
                 CheckAvailability_NoAppointmentsFound(),
                 ParseAppointmentNotMade(),
