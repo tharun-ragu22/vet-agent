@@ -46,10 +46,9 @@ def get_websocket_handler():
 
 
 async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
-    def ai_response(message) -> str:
-        return agent.run_agent(message)
     
-    all_sid = None
+    
+    call_sid = None
     
     try:
         while True:
@@ -61,24 +60,25 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 call_sid = message["callSid"]
                 print(f"Setup for call: {call_sid}")
                 websocket.call_sid = call_sid
-                sessions[call_sid] = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
+                sessions[call_sid] = None
                 
             elif message["type"] == "prompt":
                 print(f"Processing prompt: {message['voicePrompt']}")
                 conversation = sessions[websocket.call_sid]
-                conversation.append({"role": "user", "content": message["voicePrompt"]})
-                
-                response = ai_response(message['voicePrompt'])
-                conversation.append({"role": "assistant", "content": response})
+                # conversation.append({"role": "user", "content": message["voicePrompt"]})
+                print("current_conversation:", conversation)
+                response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
+                # conversation.append({"role": "assistant", "content": response.output})
+                sessions[websocket.call_sid] = response.all_messages()
                 
                 await websocket.send_text(
                     json.dumps({
                         "type": "text",
-                        "token": response,
+                        "token": response.output,
                         "last": True
                     })
                 )
-                print(f"Sent response: {response}")
+                print(f"Sent response: {response.output}")
                 
             elif message["type"] == "interrupt":
                 print("Handling interruption.")

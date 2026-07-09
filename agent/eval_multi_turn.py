@@ -24,7 +24,18 @@ cursor.executescript(CREATE_TABLE_COMMAND)
 class ConversationInputs:
     turns: list[str]
 
-    
+@dataclass
+class ParseAppointmentNotMade(Evaluator):
+    def evaluate(self, ctx: EvaluatorContext) -> bool:
+        return not ctx.span_tree.any(
+            {
+                "and_": [
+                    {"name_equals": "running tool"},
+                    {"has_attributes": {"gen_ai.tool.name": "make_appointment"}},
+                ]
+            }
+        )
+
 @dataclass
 class CheckAvailability_NoneFoundFirstTime(Evaluator):
     def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
@@ -48,7 +59,8 @@ class CheckAvailability_NoneFoundFirstTime(Evaluator):
         )
 
 @dataclass
-class CheckAvailability_AppointmentsFound(Evaluator):
+class CheckAvailability_AppointmentsFoundOnNthTime(Evaluator):
+    nth_time: int
     def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
         check_calls = ctx.span_tree.find(
             {
@@ -61,8 +73,8 @@ class CheckAvailability_AppointmentsFound(Evaluator):
         if not check_calls:
             return False
         
-        print('check call attrs:', check_calls[1].attributes)
-        tool_result = json.loads(check_calls[1].attributes.get('tool_response'))
+        print('check call attrs:', check_calls[self.nth_time].attributes)
+        tool_result = json.loads(check_calls[self.nth_time].attributes.get('tool_response'))
         
         return EvaluationReason(
             value=len(tool_result) == 1,
@@ -77,7 +89,7 @@ logfire.instrument_pydantic_ai()
 
 test_agent = LocalAgent(connection)
 dataset = Dataset(
-    name="make_appt_then_confirm",
+    name="multi-turn",
     cases=[
         Case(
             name="book_then_confirm",
@@ -85,23 +97,66 @@ dataset = Dataset(
                 "I'd like to book an appointment for my dog Max for today at 3pm",
                 "I just booked an appointment for my dog Max for today at 3pm. Can you confirm it is still happening",
             ]),
-        )
+            evaluators=[
+                CheckAvailability_NoneFoundFirstTime(),
+                CheckAvailability_AppointmentsFoundOnNthTime(nth_time=1)
+            ]
+        ),
+        Case(
+            name="make_appointment_provide_missing_name",
+            inputs=ConversationInputs(turns=[
+                "Can you make an appointment for my dog today at 2pm?",
+                "His name is Jordan",
+            ]),
+            evaluators=[
+                HasMatchingSpan(
+                    query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
+                ),
+            ]
+        ),
+        Case(
+            name="make_appointment_provide_missing_time",
+            inputs=ConversationInputs(turns=[
+                "Can you make an appointment for my dog Jake today?",
+                "At 3pm please",
+            ]),
+            evaluators=[
+                HasMatchingSpan(
+                    query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
+                ),
+            ]
+        ),
+        Case(
+            name="check_appointment_provide_missing_time",
+            inputs=ConversationInputs(turns=[
+                "Can you check if my dog Jake has an appointment for today?",
+                "At 3pm",
+            ]),
+            evaluators=[
+                HasMatchingSpan(
+                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
+                ),
+            ]
+        ),
+
     ],
-    evaluators=[
-        CheckAvailability_NoneFoundFirstTime(),
-        CheckAvailability_AppointmentsFound()
-    ]
+
 )
 
 async def multi_turn_task(inputs: ConversationInputs) -> str:
-    result = ""
+    cursor.executescript(RESET_TABLE_COMMAND)
+    message_history: list[ModelMessage] = []
+    last_output = ""
 
     for user_message in inputs.turns:
         result = await test_agent.run_agent(
-            user_message
+            user_message,
+            message_history=message_history,
         )
+        message_history = result.all_messages()
         last_output = result.output
 
+    
     return last_output
 
 async def main():
