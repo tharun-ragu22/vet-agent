@@ -58,25 +58,28 @@ def test_websocket_can_send_and_receive(client):
         websocket.send_json({'type': 'prompt', 'voicePrompt': 'test'})
         response = websocket.receive_json()
         print('my response:', response)
-        assert response.get('text') is not None
+        assert response.get('token') is not None
 
-# def test_websocket_multiple_connections(client):
-#     with client.websocket_connect('/ws') as websocket:
-#         with client.websocket_connect('/ws') as websocket2:
-#             # then the websocket connection is established
-#             assert websocket is not None
-#             assert websocket2 is not None
-#             assert websocket != websocket2
-#             # and client and server can send messages bidirectionally
-#             websocket.send_json({'type': 'test'})
-#             websocket2.send_json({'type': 'test'})
-#             response2 = websocket2.receive_json()
-#             response = websocket.receive_json()
-#             assert response2['type'] == 'expected'
+def test_websocket_multiple_connections(client):
+    # Given a user is connected with the agent
+    # And the clinic has a free line available
+    with client.websocket_connect('/ws') as websocket:
+        # When another user connects to the service
+        with client.websocket_connect('/ws') as websocket2:
+            # Then the system can serve both users
+            assert websocket is not None
+            assert websocket2 is not None
+            assert websocket != websocket2
+            # and client and server can send messages bidirectionally
+            websocket.send_json({'type': 'setup', 'callSid': '1234'})
+            websocket2.send_json({'type': 'setup', 'callSid': '1235'})
 
-            
-
-            # assert response['type'] == 'expected'
+            websocket.send_json({'type': 'prompt', 'voicePrompt': 'test'})
+            websocket2.send_json({'type': 'prompt', 'voicePrompt': 'test'})
+            response2 = websocket2.receive_json()
+            response = websocket.receive_json()
+            assert response2.get('token') is not None
+            assert response.get('token') is not None
 
     
 
