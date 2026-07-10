@@ -1,4 +1,5 @@
 import xml.etree.ElementTree as ET
+from fastapi import WebSocketDisconnect
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
@@ -7,18 +8,23 @@ from main import app, GREETING_TEXT, get_agent, get_websocket_handler
 def get_test_agent():
     return MockAgent(None, None)
 
-def get_test_websocket_handler():
-    return mock_websocket_handler
+# def get_test_websocket_handler():
+#     return mock_websocket_handler
 
-async def mock_websocket_handler(websocket, agent):
-    data = await websocket.receive_json()
-    await websocket.send_json({'type': 'expected', 'received': data})
+# async def mock_websocket_handler(websocket, agent):
+#     try:
+#         while True:
+#             data = await websocket.receive_json()
+#             await websocket.send_json({'type': 'expected', 'received': data})
+#     except WebSocketDisconnect:
+#         pass
+
 
 # Initialize the FastAPI TestClient
 @pytest.fixture(scope='function')
 def client():
     app.dependency_overrides[get_agent] = get_test_agent
-    app.dependency_overrides[get_websocket_handler] = get_test_websocket_handler
+    # app.dependency_overrides[get_websocket_handler] = get_test_websocket_handler
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
@@ -44,14 +50,33 @@ def test_voice_endpoint_returns_twiml_gather(client):
 
 def test_websocket_can_send_and_receive(client):
     # given the user has connected on the call
-    # when the agent greets the user
     with client.websocket_connect('/ws') as websocket:
-        # then the websocket connection is established
+        # when the websocket connection is established
+        websocket.send_json({'type': 'setup', 'callSid': '1234'})
+        # then client and server can send messages bidirectionally
         assert websocket is not None
-        # and client and server can send messages bidirectionally
-        websocket.send_json({'type': 'test'})
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'test'})
         response = websocket.receive_json()
-        assert response['type'] == 'expected'
+        print('my response:', response)
+        assert response.get('text') is not None
+
+# def test_websocket_multiple_connections(client):
+#     with client.websocket_connect('/ws') as websocket:
+#         with client.websocket_connect('/ws') as websocket2:
+#             # then the websocket connection is established
+#             assert websocket is not None
+#             assert websocket2 is not None
+#             assert websocket != websocket2
+#             # and client and server can send messages bidirectionally
+#             websocket.send_json({'type': 'test'})
+#             websocket2.send_json({'type': 'test'})
+#             response2 = websocket2.receive_json()
+#             response = websocket.receive_json()
+#             assert response2['type'] == 'expected'
+
+            
+
+            # assert response['type'] == 'expected'
 
     
 
