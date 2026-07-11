@@ -28,6 +28,11 @@ WS_URL = f"wss://{DOMAIN}/ws"
 
 sessions = {}
 
+@app.get("/health")
+def health_check():
+    return {'status': 'healthy'}
+
+
 @app.post("/voice")
 async def twiml_endpoint():
     """Endpoint that returns TwiML for Twilio to connect to the WebSocket"""
