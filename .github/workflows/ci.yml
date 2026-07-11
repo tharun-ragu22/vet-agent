@@ -139,6 +139,8 @@ jobs:
         run: uv sync --locked --all-extras --dev
 
       - name: Start FastAPI app
+        env:
+            GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           uv run uvicorn main:app --host 0.0.0.0 --port 8000
           is_healthy=0
