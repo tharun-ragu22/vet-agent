@@ -118,7 +118,7 @@ jobs:
         run: echo "All agent evals passed successfully!"
 
   acceptance-tests:
-    needs: [agent-eval-pass, unit_tests]
+    # needs: [agent-eval-pass, unit_tests]
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
