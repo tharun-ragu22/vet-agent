@@ -8,17 +8,6 @@ from main import app, GREETING_TEXT, get_agent, get_websocket_handler
 def get_test_agent():
     return MockAgent(None, None)
 
-# def get_test_websocket_handler():
-#     return mock_websocket_handler
-
-# async def mock_websocket_handler(websocket, agent):
-#     try:
-#         while True:
-#             data = await websocket.receive_json()
-#             await websocket.send_json({'type': 'expected', 'received': data})
-#     except WebSocketDisconnect:
-#         pass
-
 
 # Initialize the FastAPI TestClient
 @pytest.fixture(scope='function')
