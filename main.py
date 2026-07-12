@@ -21,12 +21,17 @@ def get_agent(websocket: WebSocket) -> AgentBaseClass:
 
 app = FastAPI(lifespan=lifespan)
 
-GREETING_TEXT = "Hi! I'm an AI agent. How can I help?"
+GREETING_TEXT = "Example Animal Hospital. This is virtual agent Janine speaking, how can I help?"
 PORT=8000
 DOMAIN = os.getenv('NGROK_URL')
 WS_URL = f"wss://{DOMAIN}/ws"
 
 sessions = {}
+
+@app.get("/health")
+def health_check():
+    return {'status': 'healthy'}
+
 
 @app.post("/voice")
 async def twiml_endpoint():
@@ -46,8 +51,6 @@ def get_websocket_handler():
 
 
 async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
-    
-    
     call_sid = None
     
     try:
@@ -65,10 +68,8 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
             elif message["type"] == "prompt":
                 print(f"Processing prompt: {message['voicePrompt']}")
                 conversation = sessions[websocket.call_sid]
-                # conversation.append({"role": "user", "content": message["voicePrompt"]})
                 print("current_conversation:", conversation)
                 response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
-                # conversation.append({"role": "assistant", "content": response.output})
                 sessions[websocket.call_sid] = response.all_messages()
                 
                 await websocket.send_text(

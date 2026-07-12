@@ -109,9 +109,56 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           uv run python -m agent.${{ matrix.eval_name}}
+
   agent-eval-pass:
     needs: agent_evals
     runs-on: ubuntu-latest
     steps:
       - name: All evals passed
         run: echo "All agent evals passed successfully!"
+
+  acceptance-tests:
+    needs: [agent-eval-pass, unit_tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          # Install a specific version of uv.
+          version: "0.11.23"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Start FastAPI app
+        env:
+            GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          uv run uvicorn main:app --host 0.0.0.0 --port 8000 &
+          is_healthy=0
+          for i in {1..10}; do
+            if curl -s http://localhost:8000/health; then
+              is_healthy=1
+              break
+            fi
+            sleep 2
+          done
+          if [ $is_healthy -eq 0 ]; then
+            echo "FastAPI app did not become healthy in time."
+            exit 1
+          fi
+          
+
+      - name: Run acceptance tests
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          uv run pytest acceptance_tests.py -v

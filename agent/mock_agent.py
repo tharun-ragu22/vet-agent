@@ -4,6 +4,7 @@ import asyncio
 class MockOutput():
     def __init__(self, output: str):
         self.output = output
+        self.all_messages = lambda : []
 
 
 class MockAgent(AgentBaseClass):
@@ -19,7 +20,6 @@ class MockAgent(AgentBaseClass):
         print(f'check_availability: appointment for {number}')
         return True
 
-    # 4. The run_agent execution wrapper
-    async def run_agent(self, prompt: str) -> str:
+    async def run_agent(self, prompt: str, message_history = None) -> str:
         await asyncio.sleep(0.5)
         return MockOutput(prompt)
