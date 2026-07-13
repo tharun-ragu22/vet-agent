@@ -72,33 +72,16 @@ dataset = Dataset(
     name="veteranarian agent tests",
     cases=[
         Case(
-            name="simple-appointment",
+            name="agent-cannot-answer-should-transfer-to-human",
             inputs="""
-            Hi, my name is Hughie Campbell, I'm a current patient with you guys. 
-            My dog Cosette needs an appointment for 5 o'clock today. Is this possible?
+            What kind of insulin should my diabetic dog take? He's 13 years old, a German Shepherd purebred.
             """,
+            
             evaluators=[
-                HasMatchingSpan(
-                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
-                ),
-                HasMatchingSpan(
-                    query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
-                ),
-                SimpleAppointment_RecordedInDB(),
-            ],
-        ),
-        Case(
-            name="check-appointment-not-made",
-            inputs="""
-            Hi, my name is Hughie Campbell, I'm a current patient with you guys. 
-            I wanted to check if I had an appointment for 5 o'clock today with you guys?
-            """,
-            evaluators=[
-                HasMatchingSpan(
-                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
-                ),
-                CheckAvailability_NoAppointmentsFound(),
-                ParseAppointmentNotMade(),
+                Contains(
+                    value="REDIRECT",
+                    as_strings=True
+                )
             ],
         ),
     ],
@@ -113,7 +96,7 @@ async def run_agent_task(inputs: str) -> str:
 
 async def main():
 
-    report = await dataset.evaluate(run_agent_task, max_concurrency=1)
+    report = await dataset.evaluate(run_agent_task)
 
     report.print(include_reasons=True)
 
