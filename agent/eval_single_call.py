@@ -2,7 +2,7 @@ import asyncio
 import logfire
 from pydantic_evals import Case, Dataset
 from dataclasses import dataclass
-from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext
+from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext, Contains  
 from .local_agent import LocalAgent
 from .agent_interface import CHUNK_ALERT
 import sys
@@ -99,6 +99,19 @@ dataset = Dataset(
                 ),
                 CheckAvailability_NoAppointmentsFound(),
                 ParseAppointmentNotMade(),
+            ],
+        ),
+        Case(
+            name="agent-cannot-answer-should-transfer-to-human",
+            inputs="""
+            What kind of insulin should my diabetic dog take? He's 13 years old, a German Shepherd purebred.
+            """,
+            
+            evaluators=[
+                Contains(
+                    value="REDIRECT",
+                    as_strings=True
+                )
             ],
         ),
     ],
