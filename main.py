@@ -70,6 +70,16 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 conversation = sessions[websocket.call_sid]
                 print("current_conversation:", conversation)
                 response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
+                if response.output == 'REDIRECT':
+                    await websocket.send_text(
+                        json.dumps({
+                            "type": "end",
+                            "handoffData": {
+                                "transferTo": os.getenv("REDIRECT_PHONE_NUMBER")
+                            }
+                        })
+                    )
+                    return
                 sessions[websocket.call_sid] = response.all_messages()
                 
                 await websocket.send_text(

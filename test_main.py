@@ -1,9 +1,8 @@
 import xml.etree.ElementTree as ET
-from fastapi import WebSocketDisconnect
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
-from main import app, GREETING_TEXT, get_agent, get_websocket_handler
+from main import app, GREETING_TEXT, get_agent
 
 def get_test_agent():
     return MockAgent(None, None)
@@ -69,3 +68,16 @@ def test_websocket_multiple_connections(client):
             response = websocket.receive_json()
             assert response2.get('token') is not None
             assert response.get('token') is not None
+
+def test_websocket_when_redirect_system_transfers_and_closes_connection(client):
+    # Given the user is on call with the agent
+    with client.websocket_connect('/ws') as websocket:
+        pass
+        websocket.send_json({'type': 'setup', 'callSid': '1234'})
+        # When the agent signals to transfer the call to a human
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
+        response = websocket.receive_json()
+        # Then the system transfers to a human
+        assert response.get('type') == 'end'
+        assert response.get('handoffData') is not None
+        assert response.get('handoffData').get('transferTo') != ''
