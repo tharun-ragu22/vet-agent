@@ -100,33 +100,6 @@ async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websock
 
     await handler(websocket, agent)
 
-
-@app.post("/respond")
-async def respond(
-    SpeechResult: str = Form(None), agent: AgentBaseClass = Depends(get_agent)
-):
-    """Triggered after the person finishes speaking."""
-    print("\n" + "="*40)
-    if SpeechResult:
-        print(f"[TRANSCRIPT RECEIVED]: {SpeechResult}")
-    else:
-        print("[SYSTEM]: No speech was detected.")
-    print("="*40 + "\n")
-
-    # Hang up the call cleanly
-    response = VoiceResponse()
-    gather = response.gather(
-        input="speech",
-        action="/respond", # Loops back here when they finish speaking again
-        method="POST",
-        speech_timeout="auto"
-    )
-    ret = await agent.run_agent(SpeechResult)
-    print('finished!', ret.output)
-    gather.say(ret.output)
-
-    return Response(content=str(response), media_type="application/xml")
-
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)
     print(f"Server running at http://localhost:{PORT} and {WS_URL}")
