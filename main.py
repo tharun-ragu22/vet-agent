@@ -37,7 +37,7 @@ async def twiml_endpoint():
     """Endpoint that returns TwiML for Twilio to connect to the WebSocket"""
     xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
     <Response>
-      <Connect>
+      <Connect action='/redirect'>
         <ConversationRelay url="{WS_URL}" welcomeGreeting="{GREETING_TEXT}" ttsProvider="ElevenLabs" voice="FGY2WhTYpPnrIDTdsKH5" />
       </Connect>
     </Response>"""
@@ -47,10 +47,12 @@ async def twiml_endpoint():
 @app.post('/redirect')
 async def redirect(request : Request):
     form_data = await request.form()
+    print('form data', form_data)
     handoff_data : str = form_data.get("HandoffData", {})
     handoff_data_dict : dict = json.loads(handoff_data)
 
     transfer_number = handoff_data_dict.get('transferTo')
+    print('transfer number', transfer_number)
     
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
     <Response>
@@ -73,7 +75,7 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
-            print('message:\n', message)
+            # print('message:\n', message)
             
             if message["type"] == "setup":
                 call_sid = message["callSid"]
@@ -87,14 +89,23 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 print("current_conversation:", conversation)
                 response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
                 if response.output == 'REDIRECT':
-                    await websocket.send_text(
-                        json.dumps({
+                    redirect_phone_number = os.getenv("REDIRECT_PHONE_NUMBER")
+                    print(f'redirecting call to {redirect_phone_number}')
+                    try:
+                        end_payload = json.dumps({
                             "type": "end",
-                            "handoffData": {
-                                "transferTo": os.getenv("REDIRECT_PHONE_NUMBER")
-                            }
+                            "handoffData": json.dumps({
+                                "transferTo": redirect_phone_number
+                            })
                         })
-                    )
+
+                        print('sending end payload', end_payload)
+    
+                        await websocket.send_text(
+                            end_payload
+                        )
+                    except Exception as e:
+                        print('failed to send redirect message:', e)
                     return
                 sessions[websocket.call_sid] = response.all_messages()
                 

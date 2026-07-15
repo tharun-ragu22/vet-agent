@@ -3,6 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
 from main import app, GREETING_TEXT, get_agent
+import json
 
 def get_test_agent():
     return MockAgent(None, None)
@@ -79,7 +80,7 @@ def test_websocket_when_redirect_system_transfers_and_closes_connection(client):
         # Then the system transfers to a human
         assert response.get('type') == 'end'
         assert response.get('handoffData') is not None
-        assert response.get('handoffData').get('transferTo') != ''
+        assert json.loads(response.get('handoffData')).get('transferTo') != ''
 
 def test_redirect_endpoint_redirects_to_number(client):
     # Given the agent could not answer the user query
