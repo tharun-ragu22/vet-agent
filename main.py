@@ -90,22 +90,14 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
                 if response.output == 'REDIRECT':
                     redirect_phone_number = os.getenv("REDIRECT_PHONE_NUMBER")
-                    print(f'redirecting call to {redirect_phone_number}')
-                    try:
-                        end_payload = json.dumps({
+                    await websocket.send_text(
+                        json.dumps({
                             "type": "end",
                             "handoffData": json.dumps({
                                 "transferTo": redirect_phone_number
                             })
                         })
-
-                        print('sending end payload', end_payload)
-    
-                        await websocket.send_text(
-                            end_payload
-                        )
-                    except Exception as e:
-                        print('failed to send redirect message:', e)
+                    )
                     return
                 sessions[websocket.call_sid] = response.all_messages()
                 
