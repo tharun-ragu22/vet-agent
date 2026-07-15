@@ -2,7 +2,6 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
-from urllib.parse import urlencode
 from main import app, GREETING_TEXT, get_agent
 
 def get_test_agent():

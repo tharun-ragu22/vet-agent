@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request, Response, Depends, WebSocket, WebSocketDisconnect
-from twilio.twiml.voice_response import VoiceResponse
-from agent.agent_interface import AgentBaseClass, AGENT_SYSTEM_PROMPT
+from agent.agent_interface import AgentBaseClass
 from agent.prod_agent import ProdAgent
 from contextlib import asynccontextmanager
 import uvicorn
