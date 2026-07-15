@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
+from urllib.parse import urlencode
 from main import app, GREETING_TEXT, get_agent
 
 def get_test_agent():
@@ -72,7 +73,6 @@ def test_websocket_multiple_connections(client):
 def test_websocket_when_redirect_system_transfers_and_closes_connection(client):
     # Given the user is on call with the agent
     with client.websocket_connect('/ws') as websocket:
-        pass
         websocket.send_json({'type': 'setup', 'callSid': '1234'})
         # When the agent signals to transfer the call to a human
         websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
@@ -81,3 +81,17 @@ def test_websocket_when_redirect_system_transfers_and_closes_connection(client):
         assert response.get('type') == 'end'
         assert response.get('handoffData') is not None
         assert response.get('handoffData').get('transferTo') != ''
+
+def test_redirect_endpoint_redirects_to_number(client):
+    # Given the agent could not answer the user query
+    # And signalled to redirect the call
+    # When the telephony system posts the redirect endpoint
+    expected_redirect_number = '+15551234567'
+    redirect_data = {
+        "HandoffData": f'{{"transferTo": "{expected_redirect_number}"}}',
+    }
+    response = client.post('/redirect', data=redirect_data)
+    # Then the user is transferred to the clinic's phone number
+    root = ET.fromstring(response.text)
+    dial_node = root.find('Dial')
+    assert dial_node.text is not None and dial_node.text == expected_redirect_number

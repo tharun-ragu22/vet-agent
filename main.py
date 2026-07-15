@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, Response, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Response, Depends, WebSocket, WebSocketDisconnect
 from twilio.twiml.voice_response import VoiceResponse
 from agent.agent_interface import AgentBaseClass, AGENT_SYSTEM_PROMPT
 from agent.prod_agent import ProdAgent
@@ -44,6 +44,23 @@ async def twiml_endpoint():
     </Response>"""
     
     return Response(content=xml_response, media_type="application/xml")
+
+@app.post('/redirect')
+async def redirect(request : Request):
+    form_data = await request.form()
+    handoff_data : str = form_data.get("HandoffData", {})
+    handoff_data_dict : dict = json.loads(handoff_data)
+
+    transfer_number = handoff_data_dict.get('transferTo')
+    
+    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+        <Say>Transferring you now, please hold.</Say>
+        <Dial>{transfer_number}</Dial>
+    </Response>"""
+
+    return Response(content=twiml, media_type='application/xml')
+    
 
 def get_websocket_handler():
     return websocket_handler
