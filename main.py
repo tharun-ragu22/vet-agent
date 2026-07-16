@@ -1,6 +1,5 @@
-from fastapi import FastAPI, Form, Response, Depends, WebSocket, WebSocketDisconnect
-from twilio.twiml.voice_response import VoiceResponse
-from agent.agent_interface import AgentBaseClass, AGENT_SYSTEM_PROMPT
+from fastapi import FastAPI, Request, Response, Depends, WebSocket, WebSocketDisconnect
+from agent.agent_interface import AgentBaseClass
 from agent.prod_agent import ProdAgent
 from contextlib import asynccontextmanager
 import uvicorn
@@ -38,12 +37,31 @@ async def twiml_endpoint():
     """Endpoint that returns TwiML for Twilio to connect to the WebSocket"""
     xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
     <Response>
-      <Connect>
+      <Connect action='/redirect'>
         <ConversationRelay url="{WS_URL}" welcomeGreeting="{GREETING_TEXT}" ttsProvider="ElevenLabs" voice="FGY2WhTYpPnrIDTdsKH5" />
       </Connect>
     </Response>"""
     
     return Response(content=xml_response, media_type="application/xml")
+
+@app.post('/redirect')
+async def redirect(request : Request):
+    form_data = await request.form()
+    print('form data', form_data)
+    handoff_data : str = form_data.get("HandoffData", {})
+    handoff_data_dict : dict = json.loads(handoff_data)
+
+    transfer_number = handoff_data_dict.get('transferTo')
+    print('transfer number', transfer_number)
+    
+    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+        <Say>Transferring you now, please hold.</Say>
+        <Dial>{transfer_number}</Dial>
+    </Response>"""
+
+    return Response(content=twiml, media_type='application/xml')
+    
 
 def get_websocket_handler():
     return websocket_handler
@@ -57,7 +75,7 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
-            print('message:\n', message)
+            # print('message:\n', message)
             
             if message["type"] == "setup":
                 call_sid = message["callSid"]
@@ -70,6 +88,17 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 conversation = sessions[websocket.call_sid]
                 print("current_conversation:", conversation)
                 response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
+                if response.output == 'REDIRECT':
+                    redirect_phone_number = os.getenv("REDIRECT_PHONE_NUMBER")
+                    await websocket.send_text(
+                        json.dumps({
+                            "type": "end",
+                            "handoffData": json.dumps({
+                                "transferTo": redirect_phone_number
+                            })
+                        })
+                    )
+                    return
                 sessions[websocket.call_sid] = response.all_messages()
                 
                 await websocket.send_text(
@@ -99,33 +128,6 @@ async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websock
     await websocket.accept()
 
     await handler(websocket, agent)
-
-
-@app.post("/respond")
-async def respond(
-    SpeechResult: str = Form(None), agent: AgentBaseClass = Depends(get_agent)
-):
-    """Triggered after the person finishes speaking."""
-    print("\n" + "="*40)
-    if SpeechResult:
-        print(f"[TRANSCRIPT RECEIVED]: {SpeechResult}")
-    else:
-        print("[SYSTEM]: No speech was detected.")
-    print("="*40 + "\n")
-
-    # Hang up the call cleanly
-    response = VoiceResponse()
-    gather = response.gather(
-        input="speech",
-        action="/respond", # Loops back here when they finish speaking again
-        method="POST",
-        speech_timeout="auto"
-    )
-    ret = await agent.run_agent(SpeechResult)
-    print('finished!', ret.output)
-    gather.say(ret.output)
-
-    return Response(content=str(response), media_type="application/xml")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)
