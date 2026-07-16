@@ -84,6 +84,19 @@ dataset = Dataset(
                 )
             ],
         ),
+        Case(
+            name="user-asks-for-human-should-transfer-to-human",
+            inputs="""
+            Human representative
+            """,
+            
+            evaluators=[
+                Contains(
+                    value="REDIRECT",
+                    as_strings=True
+                )
+            ],
+        ),
     ],
 )
 
