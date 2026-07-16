@@ -3,7 +3,7 @@ import logfire
 from pydantic_ai import ModelMessage
 from pydantic_evals import Case, Dataset
 from dataclasses import dataclass
-from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext
+from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext, Contains
 from .local_agent import LocalAgent
 import sys
 import json
@@ -25,16 +25,17 @@ class ConversationInputs:
     turns: list[str]
 
 @dataclass
-class ParseAppointmentNotMade(Evaluator):
+class ParseAppointmentNotChecked(Evaluator):
     def evaluate(self, ctx: EvaluatorContext) -> bool:
         return not ctx.span_tree.any(
             {
                 "and_": [
                     {"name_equals": "running tool"},
-                    {"has_attributes": {"gen_ai.tool.name": "make_appointment"}},
+                    {"has_attributes": {"gen_ai.tool.name": "check_availability"}},
                 ]
             }
         )
+
 
 @dataclass
 class CheckAvailability_NoneFoundFirstTime(Evaluator):
@@ -137,6 +138,20 @@ dataset = Dataset(
                     query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
                 ),
             ]
+        ),
+        Case(
+            name="redirect_try_agent_first",
+            inputs=ConversationInputs(turns=[
+                "Can you check if my dog Jake has an appointment?",
+                "Human representative",
+            ]),
+            evaluators=[
+                Contains(
+                    value="REDIRECT",
+                    as_strings=True
+                ),
+                ParseAppointmentNotChecked()
+            ],
         ),
 
     ],
