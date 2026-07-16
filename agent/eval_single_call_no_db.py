@@ -97,6 +97,20 @@ dataset = Dataset(
                 )
             ],
         ),
+
+        Case(
+            name="user-asks-for-operator-should-transfer-to-human",
+            inputs="""
+            Operator
+            """,
+            
+            evaluators=[
+                Contains(
+                    value="REDIRECT",
+                    as_strings=True
+                )
+            ],
+        ),
     ],
 )
 
