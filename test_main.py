@@ -94,3 +94,14 @@ def test_redirect_endpoint_redirects_to_number(client):
     root = ET.fromstring(response.text)
     dial_node = root.find('Dial')
     assert dial_node.text is not None and dial_node.text == expected_redirect_number
+
+def test_websocket_when_redirect_system_transfers_and_provides_context(client):
+    # Given the user is on call with the agent
+    with client.websocket_connect('/ws') as websocket:
+        websocket.send_json({'type': 'setup', 'callSid': '1234'})
+        # When the agent decides to transfer the call to a human
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
+        response = websocket.receive_json()
+        # Then the system provides context on the call before transferring
+        assert response.get('handoffData') is not None
+        assert json.loads(response.get('handoffData')).get('callContext', '') != ''

@@ -94,7 +94,8 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                         json.dumps({
                             "type": "end",
                             "handoffData": json.dumps({
-                                "transferTo": redirect_phone_number
+                                "transferTo": redirect_phone_number,
+                                "callContext": "EXAMPLE"
                             })
                         })
                     )
