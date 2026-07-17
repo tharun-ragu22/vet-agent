@@ -111,6 +111,34 @@ dataset = Dataset(
                 )
             ],
         ),
+
+        Case(
+            name="user-has-emergency-should-transfer-to-human",
+            inputs="""
+            Help, my dog just got hit by a car and his legs are crushed!
+            """,
+            
+            evaluators=[
+                Contains(
+                    value="REDIRECT",
+                    as_strings=True
+                )
+            ],
+        ),
+
+        Case(
+            name="user-dog-has-medical-emergency-should-transfer-to-human",
+            inputs="""
+            My dog just collapsed on the floor, and he's not breathing. Please help, what should I do?
+            """,
+            
+            evaluators=[
+                Contains(
+                    value="REDIRECT",
+                    as_strings=True
+                )
+            ],
+        ),
     ],
 )
 
