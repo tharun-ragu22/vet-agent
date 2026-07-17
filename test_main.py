@@ -13,7 +13,6 @@ def get_test_agent():
 @pytest.fixture(scope='function')
 def client():
     app.dependency_overrides[get_agent] = get_test_agent
-    # app.dependency_overrides[get_websocket_handler] = get_test_websocket_handler
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
@@ -80,7 +79,7 @@ def test_websocket_when_redirect_system_transfers_and_closes_connection(client):
         # Then the system transfers to a human
         assert response.get('type') == 'end'
         assert response.get('handoffData') is not None
-        assert json.loads(response.get('handoffData')).get('transferTo') != ''
+        assert json.loads(response.get('handoffData')).get('transferTo','') != ''
 
 def test_redirect_endpoint_redirects_to_number(client):
     # Given the agent could not answer the user query
