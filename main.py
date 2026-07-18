@@ -57,7 +57,11 @@ async def redirect(request : Request):
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
     <Response>
         <Say>Transferring you now, please hold.</Say>
-        <Dial>{transfer_number}</Dial>
+        <Dial>
+            <Number url="/brief-reception">
+                {transfer_number}
+            </Number>
+        </Dial>
     </Response>"""
 
     return Response(content=twiml, media_type='application/xml')

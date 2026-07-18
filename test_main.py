@@ -93,7 +93,7 @@ def test_redirect_endpoint_redirects_to_number(client):
     # Then the user is transferred to the clinic's phone number
     root = ET.fromstring(response.text)
     dial_node = root.find('Dial')
-    assert dial_node.text is not None and dial_node.text == expected_redirect_number
+    assert any([elem.text == expected_redirect_number for elem in dial_node.iter()])
 
 def test_websocket_when_redirect_system_transfers_and_provides_context(client):
     # Given the user is on call with the agent
@@ -105,3 +105,18 @@ def test_websocket_when_redirect_system_transfers_and_provides_context(client):
         # Then the system provides context on the call before transferring
         assert response.get('handoffData') is not None
         assert json.loads(response.get('handoffData')).get('callContext', '') != ''
+
+def test_redirect_endpoint_redirects_to_number(client):
+    # Given the agent could not answer the user query
+    expected_redirect_number = '+15551234567'
+    expected_summary_text = "expected summary text"
+    redirect_data = {
+        "HandoffData": f'{{"transferTo": "{expected_redirect_number}", "callContext": "{expected_summary_text}"}}',
+    }
+    # And signalled to redirect the call
+    # When the telephony system posts the redirect endpoint
+    response = client.post('/redirect', data=redirect_data)
+    # Then it should receive instructions to post to the briefing endpoint
+    root = ET.fromstring(response.text)
+    assert root is not None
+    assert any(['brief-reception' in node.get('url','') for node in root.iter()])
