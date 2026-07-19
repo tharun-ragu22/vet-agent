@@ -75,12 +75,8 @@ async def brief_reception(request: Request, summarizer = Depends(get_summarizer)
     resp = VoiceResponse()
     form_data = await request.form()
     call_id = form_data.get("ParentCallSid")
-    print('hihi')
-    print('parent call sid:', call_id)
     context = sessions[call_id]
-    print('current context:', context)
     summary : str = summarizer(context)
-    print('got summary:', summary)
     gather = resp.gather(input="dtmf")
     gather.say(summary)
     return Response(content=str(resp), media_type="application/xml")
@@ -109,7 +105,6 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
             elif message["type"] == "prompt":
                 print(f"Processing prompt: {message['voicePrompt']}")
                 conversation = sessions[websocket.call_sid]
-                print("current_conversation:", conversation)
                 response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
                 if response.output == 'REDIRECT':
                     redirect_phone_number = os.getenv("REDIRECT_PHONE_NUMBER")
@@ -141,8 +136,8 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 
     except WebSocketDisconnect:
         print("WebSocket connection closed")
-        # if call_sid:
-        #     sessions.pop(call_sid, None)
+        if call_sid:
+            sessions.pop(call_sid, None)
 
 
 @app.websocket("/ws")
