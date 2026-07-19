@@ -2,11 +2,13 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
-from main import app, GREETING_TEXT, get_agent
+from main import app, GREETING_TEXT, get_agent, get_summarizer
 import json
 
 def get_test_agent():
     return MockAgent(None, None)
+
+
 
 
 # Initialize the FastAPI TestClient
@@ -110,21 +112,61 @@ def test_redirect_endpoint_instructs_to_use_brief_endpoint(client):
     assert root is not None
     assert any(['brief-reception' in node.get('url','') for node in root.iter()])
 
-def test_brief_receptionist_endpoint_sends_context_to_receptionist(client):
+# Initialize the FastAPI TestClient
+@pytest.fixture(scope='function')
+def brief_receptionist_client():
+    mock_summarizer = lambda context : "example summary"
+    app.dependency_overrides[get_agent] = get_test_agent
+    app.dependency_overrides[get_summarizer] = lambda : mock_summarizer
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+def test_brief_receptionist_endpoint_sends_context_to_receptionist(brief_receptionist_client):
     # Given the agent decided to redirect the call
     example_call_sid = '1234'
-    with client.websocket_connect('/ws') as websocket:
+    with brief_receptionist_client.websocket_connect('/ws') as websocket:
         websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
         websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
         response = websocket.receive_json()
     
     # When the telephony system posts the briefing endpoint
-    response = client.post('/brief-reception', data={"CallSid": example_call_sid})
-    print('received response', response.text)
+    response = brief_receptionist_client.post('/brief-reception', data={"ParentCallSid": example_call_sid})
+    # print('received response', response.json())
     # Then it should receive instructions to send the summary of the previous conversation to the receptionist
     root = ET.fromstring(response.text)
-    say_nodes = root.findall('.//Say')
-    assert any([node.text == "example summary" for node in say_nodes])
+    say_nodes = root.findall('.//Say') # look recursively through
+    assert any(["example summary" in node.text for node in say_nodes])
+    # And to ask them to press any key to continue talking with the user
+    gather_nodes = root.findall('Gather')
+    assert any([node.get('input','') == 'dtmf' for node in gather_nodes])
+
+
+@pytest.fixture(scope='function')
+def brief_receptionist_client2():
+    mock_summarizer = lambda context : "example summary 2"
+    app.dependency_overrides[get_agent] = get_test_agent
+    app.dependency_overrides[get_summarizer] = lambda : mock_summarizer
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+def test_brief_receptionist_endpoint_sends_context_to_receptionist2(brief_receptionist_client2):
+    # Given the agent decided to redirect the call
+    example_call_sid = '1235'
+    with brief_receptionist_client2.websocket_connect('/ws') as websocket:
+        websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
+        response = websocket.receive_json()
+    
+    # When the telephony system posts the briefing endpoint
+    response = brief_receptionist_client2.post('/brief-reception', data={"ParentCallSid": example_call_sid})
+    print('received response', response.text)
+    print('status', response.status_code)
+    # Then it should receive instructions to send the summary of the previous conversation to the receptionist
+    root = ET.fromstring(response.text)
+    say_nodes = root.findall('.//Say') # look recursively through
+    assert any(["example summary 2" in node.text for node in say_nodes])
     # And to ask them to press any key to continue talking with the user
     gather_nodes = root.findall('Gather')
     assert any([node.get('input','') == 'dtmf' for node in gather_nodes])

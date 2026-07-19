@@ -2,7 +2,8 @@ from fastapi import FastAPI, Request, Response, Depends, WebSocket, WebSocketDis
 from agent.agent_interface import AgentBaseClass
 from agent.prod_agent import ProdAgent
 from contextlib import asynccontextmanager
-from twilio.twiml.voice_response import VoiceResponse, Dial, Number
+from twilio.twiml.voice_response import VoiceResponse, Dial
+from collections.abc import Callable
 import uvicorn
 import json
 from dotenv import load_dotenv
@@ -18,6 +19,12 @@ async def lifespan(app: FastAPI):
 
 def get_agent(websocket: WebSocket) -> AgentBaseClass:
     return websocket.app.state.agent
+
+def summarizer(context: list[dict[str, str]]) -> str:
+    return 'real summary'
+
+def get_summarizer() -> Callable[[list[dict[str, str]]], str]:
+    return summarizer
 
 app = FastAPI(lifespan=lifespan)
 
@@ -64,10 +71,18 @@ async def redirect(request : Request):
     return Response(content=str(resp), media_type="application/xml")
 
 @app.post('/brief-reception')
-async def brief_reception(request: Request):
+async def brief_reception(request: Request, summarizer = Depends(get_summarizer)):
     resp = VoiceResponse()
+    form_data = await request.form()
+    call_id = form_data.get("ParentCallSid")
+    print('hihi')
+    print('parent call sid:', call_id)
+    context = sessions[call_id]
+    print('current context:', context)
+    summary : str = summarizer(context)
+    print('got summary:', summary)
     gather = resp.gather(input="dtmf")
-    gather.say("example summary")
+    gather.say(summary)
     return Response(content=str(resp), media_type="application/xml")
     
 
@@ -126,8 +141,8 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 
     except WebSocketDisconnect:
         print("WebSocket connection closed")
-        if call_sid:
-            sessions.pop(call_sid, None)
+        # if call_sid:
+        #     sessions.pop(call_sid, None)
 
 
 @app.websocket("/ws")
