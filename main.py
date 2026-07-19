@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Response, Depends, WebSocket, WebSocketDis
 from agent.agent_interface import AgentBaseClass
 from agent.prod_agent import ProdAgent
 from contextlib import asynccontextmanager
+from twilio.twiml.voice_response import VoiceResponse, Dial, Number
 import uvicorn
 import json
 from dotenv import load_dotenv
@@ -54,17 +55,20 @@ async def redirect(request : Request):
     transfer_number = handoff_data_dict.get('transferTo')
     print('transfer number', transfer_number)
     
-    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
-    <Response>
-        <Say>Transferring you now, please hold.</Say>
-        <Dial>
-            <Number url="/brief-reception">
-                {transfer_number}
-            </Number>
-        </Dial>
-    </Response>"""
+    resp = VoiceResponse()
+    resp.say("Transferring you now, please hold.")
+    dial = Dial()
+    dial.number(transfer_number.strip(), url="/brief-reception")
+    resp.append(dial)
 
-    return Response(content=twiml, media_type='application/xml')
+    return Response(content=str(resp), media_type="application/xml")
+
+@app.post('/brief-reception')
+async def brief_reception(request: Request):
+    resp = VoiceResponse()
+    gather = resp.gather(input="dtmf")
+    gather.say("example summary")
+    return Response(content=str(resp), media_type="application/xml")
     
 
 def get_websocket_handler():
@@ -98,8 +102,7 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                         json.dumps({
                             "type": "end",
                             "handoffData": json.dumps({
-                                "transferTo": redirect_phone_number,
-                                "callContext": "EXAMPLE"
+                                "transferTo": redirect_phone_number
                             })
                         })
                     )

@@ -4,7 +4,7 @@ import asyncio
 class MockOutput():
     def __init__(self, output: str):
         self.output = output
-        self.all_messages = lambda : []
+        self.all_messages = lambda : [{'role': 'user', 'content': 'this is a sample message'}]
 
 
 class MockAgent(AgentBaseClass):

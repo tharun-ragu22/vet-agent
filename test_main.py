@@ -95,18 +95,7 @@ def test_redirect_endpoint_redirects_to_number(client):
     dial_node = root.find('Dial')
     assert any([elem.text == expected_redirect_number for elem in dial_node.iter()])
 
-def test_websocket_when_redirect_system_transfers_and_provides_context(client):
-    # Given the user is on call with the agent
-    with client.websocket_connect('/ws') as websocket:
-        websocket.send_json({'type': 'setup', 'callSid': '1234'})
-        # When the agent decides to transfer the call to a human
-        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
-        response = websocket.receive_json()
-        # Then the system provides context on the call before transferring
-        assert response.get('handoffData') is not None
-        assert json.loads(response.get('handoffData')).get('callContext', '') != ''
-
-def test_redirect_endpoint_redirects_to_number(client):
+def test_redirect_endpoint_instructs_to_use_brief_endpoint(client):
     # Given the agent could not answer the user query
     expected_redirect_number = '+15551234567'
     expected_summary_text = "expected summary text"
@@ -120,3 +109,22 @@ def test_redirect_endpoint_redirects_to_number(client):
     root = ET.fromstring(response.text)
     assert root is not None
     assert any(['brief-reception' in node.get('url','') for node in root.iter()])
+
+def test_brief_receptionist_endpoint_sends_context_to_receptionist(client):
+    # Given the agent decided to redirect the call
+    example_call_sid = '1234'
+    with client.websocket_connect('/ws') as websocket:
+        websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
+        response = websocket.receive_json()
+    
+    # When the telephony system posts the briefing endpoint
+    response = client.post('/brief-reception', data={"CallSid": example_call_sid})
+    print('received response', response.text)
+    # Then it should receive instructions to send the summary of the previous conversation to the receptionist
+    root = ET.fromstring(response.text)
+    say_nodes = root.findall('.//Say')
+    assert any([node.text == "example summary" for node in say_nodes])
+    # And to ask them to press any key to continue talking with the user
+    gather_nodes = root.findall('Gather')
+    assert any([node.get('input','') == 'dtmf' for node in gather_nodes])
