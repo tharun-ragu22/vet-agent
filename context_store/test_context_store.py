@@ -14,3 +14,17 @@ def test_context_store_existing_id_should_get_result():
     msg = context[0]
     assert msg.role == 'user'
     assert msg.content == 'hi there'
+
+def test_context_store_multiple_conversations_should_get_results_independantly():
+    store = ContextStore()
+    store.add_message(call_sid = '1234', role = 'user', content = 'hi there')
+    store.add_message(call_sid = '1235', role = 'user', content = 'howdy')
+    
+    context1 = store.get_context(call_sid='1234')
+    msg = context1[0]
+    assert msg.role == 'user'
+    assert msg.content == 'hi there'
+
+    context2 = store.get_context(call_sid='1235')
+    msg = context2[0]
+    assert msg.content == 'howdy'
