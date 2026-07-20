@@ -28,3 +28,17 @@ def test_context_store_multiple_conversations_should_get_results_independantly()
     context2 = store.get_context(call_sid='1235')
     msg = context2[0]
     assert msg.content == 'howdy'
+
+def test_context_store_multiple_turns_should_get_full_context():
+    store = ContextStore()
+    store.add_message(call_sid = '1234', role = 'user', content = 'hi there')
+    store.add_message(call_sid = '1234', role = 'user', content = 'howdy')
+    
+    context = store.get_context(call_sid='1234')
+    assert len(context) == 2
+    msg = context[0]
+    assert msg.role == 'user'
+    assert msg.content == 'hi there'
+
+    msg = context[1]
+    assert msg.content == 'howdy'
