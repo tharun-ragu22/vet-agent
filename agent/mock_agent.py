@@ -21,5 +21,4 @@ class MockAgent(AgentBaseClass):
         return True
 
     async def run_agent(self, prompt: str, message_history = None) -> str:
-        await asyncio.sleep(0.5)
         return MockOutput(prompt)
