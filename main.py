@@ -8,14 +8,19 @@ import uvicorn
 import json
 from dotenv import load_dotenv
 import os
+from context_store.context_store import ContextStore
 
 load_dotenv()
 
+context_store = ContextStore()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.agent = ProdAgent()
     yield
+
+def get_context_store() -> ContextStore:
+    return context_store
 
 def get_agent(websocket: WebSocket) -> AgentBaseClass:
     return websocket.app.state.agent
@@ -87,7 +92,7 @@ def get_websocket_handler():
 
 
 
-async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
+async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass, context_store: ContextStore):
     call_sid = None
     
     try:
@@ -104,8 +109,10 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 
             elif message["type"] == "prompt":
                 print(f"Processing prompt: {message['voicePrompt']}")
+                context_store.add_message(websocket.call_sid, role='user', content=message['voicePrompt'])
                 conversation = sessions[websocket.call_sid]
                 response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
+                context_store.add_message(websocket.call_sid, role='agent', content=response.output)
                 if response.output == 'REDIRECT':
                     redirect_phone_number = os.getenv("REDIRECT_PHONE_NUMBER")
                     await websocket.send_text(
@@ -141,11 +148,11 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websocket_handler), agent : AgentBaseClass = Depends(get_agent)):
+async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websocket_handler), agent : AgentBaseClass = Depends(get_agent), context_store = Depends(get_context_store)):
     """WebSocket endpoint for real-time communication"""
     await websocket.accept()
 
-    await handler(websocket, agent)
+    await handler(websocket, agent, context_store)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)

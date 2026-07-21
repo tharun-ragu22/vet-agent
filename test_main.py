@@ -2,7 +2,8 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
-from main import app, GREETING_TEXT, get_agent, get_summarizer
+from main import app, GREETING_TEXT, get_agent, get_summarizer, get_context_store
+from context_store.context_store import ContextStore
 import json
 
 def get_test_agent():
@@ -170,3 +171,33 @@ def test_brief_receptionist_endpoint_sends_context_to_receptionist2(brief_recept
     # And to ask them to press any key to continue talking with the user
     gather_nodes = root.findall('Gather')
     assert any([node.get('input','') == 'dtmf' for node in gather_nodes])
+
+@pytest.fixture(scope='function')
+def context_store_client_and_store():
+    mock_summarizer = lambda context : "example summary"
+    app.dependency_overrides[get_agent] = get_test_agent
+    app.dependency_overrides[get_summarizer] = lambda : mock_summarizer
+    external_context_store = ContextStore()
+    app.dependency_overrides[get_context_store] = lambda : external_context_store
+    with TestClient(app) as c:
+        yield c, external_context_store
+    app.dependency_overrides.clear()
+
+
+def test_brief_receptionist_endpoint_gets_context_from_previous_conversation(context_store_client_and_store):
+    context_store_client, external_context_store = context_store_client_and_store
+    # Given the agent decided to redirect the call
+    example_call_sid = '1235'
+    expected_text = "hey how's it going"
+    with context_store_client.websocket_connect('/ws') as websocket:
+        websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
+        websocket.send_json({'type': 'prompt', 'voicePrompt': expected_text})
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
+        # When the agent disconnects from the user
+    
+    
+    # Then the system has the conversation for summarization
+    context = external_context_store.get_context(example_call_sid)
+    print('returned contenxt', context)
+    assert any([turn.role == 'user' and turn.content == expected_text for turn in context])
+    assert any([turn.role == 'agent' for turn in context])
