@@ -202,7 +202,7 @@ def test_brief_receptionist_endpoint_gets_context_from_previous_conversation(con
     assert any([turn.role == 'user' and turn.content == expected_text for turn in context])
     assert any([turn.role == 'agent' for turn in context])
 
-def test_create_transcript_sample_dict_should_create_transcript_string():
+def test_create_transcript_sample_context_should_create_transcript_string():
     example_conversation=[
         ConversationTurn(role='agent',content='hey, how\'s it going'),
         ConversationTurn(role='user',content='hi')
@@ -214,3 +214,7 @@ def test_create_transcript_sample_dict_should_create_transcript_string():
     for i in range(len(example_conversation)):
         assert example_conversation[i].role.capitalize() == transcript_lines[i+1].split(sep=': ', maxsplit=1)[0]
         assert example_conversation[i].content == transcript_lines[i+1].split(sep=': ', maxsplit=1)[1]
+
+def test_create_transcript_empty_context_should_just_return_title():
+    transcript = create_transcript([])
+    assert transcript == 'Transcript:\n'
