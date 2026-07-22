@@ -69,9 +69,39 @@ dataset = Dataset(
             evaluators=[
                 LLMJudge(
                     rubric='Response should mention no specific caller identification.',
-                    model=eval_llm_judge,
                     assertion={
                         'evaluation_name': 'no-caller-info'
+                    }
+                ),
+                
+            ],
+        ),
+        Case(
+            name="small-convo",
+            inputs="""
+            Transcript:
+            Agent: Example Animal Hospital, Janine speaking. How can I help
+            User: Hey this is Jerome Heffner. I had a question about my dog Michael.
+            Agent: Sure, how can I help?
+            User: What kind of insulin does he need to take? . He's diabetic.
+            """,
+            evaluators=[
+                LLMJudge(
+                    rubric='Response should mention that Jerome Heffner is calling for his dog Michael.',
+                    assertion={
+                        'evaluation_name': 'includes-caller-info'
+                    }
+                ),
+                LLMJudge(
+                    rubric='Response should mention that Michael is diabetic',
+                    assertion={
+                        'evaluation_name': 'dog-diabetic'
+                    }
+                ),
+                LLMJudge(
+                    rubric='Response should mention that the caller is inquiring about his dog\'s insulin',
+                    assertion={
+                        'evaluation_name': 'dog-insulin'
                     }
                 ),
                 
@@ -87,7 +117,7 @@ dataset = Dataset(
             },
         ),
         LLMJudge(
-            rubric='Response should not attempt to fabricate any information that is not provided in the input transcript',
+            rubric='Response should not fabricate any information that is not provided in the input transcript',
             assertion={
                 'evaluation_name': 'no-fake-info',
                 'include_reason': True,
