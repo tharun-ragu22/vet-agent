@@ -2,8 +2,8 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
-from main import app, GREETING_TEXT, get_agent, get_summarizer, get_context_store
-from context_store.context_store import ContextStore
+from main import app, GREETING_TEXT, create_transcript, get_agent, get_summarizer, get_context_store
+from context_store.context_store import ContextStore, ConversationTurn
 import json
 
 def get_test_agent():
@@ -201,3 +201,16 @@ def test_brief_receptionist_endpoint_gets_context_from_previous_conversation(con
     print('returned contenxt', context)
     assert any([turn.role == 'user' and turn.content == expected_text for turn in context])
     assert any([turn.role == 'agent' for turn in context])
+
+def test_create_transcript_sample_dict_should_create_transcript_string():
+    example_conversation=[
+        ConversationTurn(role='agent',content='hey, how\'s it going'),
+        ConversationTurn(role='user',content='hi')
+    ]
+    transcript = create_transcript(example_conversation)
+    transcript_lines = transcript.splitlines()
+
+    assert transcript_lines[0] == 'Transcript:'
+    for i in range(len(example_conversation)):
+        assert example_conversation[i].role.capitalize() == transcript_lines[i+1].split(sep=': ', maxsplit=1)[0]
+        assert example_conversation[i].content == transcript_lines[i+1].split(sep=': ', maxsplit=1)[1]

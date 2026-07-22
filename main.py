@@ -8,7 +8,7 @@ import uvicorn
 import json
 from dotenv import load_dotenv
 import os
-from context_store.context_store import ContextStore
+from context_store.context_store import ContextStore, ConversationTurn
 
 load_dotenv()
 
@@ -25,10 +25,15 @@ def get_context_store() -> ContextStore:
 def get_agent(websocket: WebSocket) -> AgentBaseClass:
     return websocket.app.state.agent
 
-def summarizer(context: list[dict[str, str]]) -> str:
+def create_transcript(context: list[ConversationTurn]) -> str:
+    ret = 'Transcript:\n'
+    for turn in context:
+        ret += f'{turn.role.capitalize()}: {turn.content}\n'
+    return ret
+def summarizer(context: list[ConversationTurn]) -> str:
     return 'real summary'
 
-def get_summarizer() -> Callable[[list[dict[str, str]]], str]:
+def get_summarizer() -> Callable[[list[ConversationTurn]], str]:
     return summarizer
 
 app = FastAPI(lifespan=lifespan)
