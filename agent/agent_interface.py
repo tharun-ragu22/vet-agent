@@ -2,7 +2,6 @@ from abc import ABC
 from dataclasses import dataclass
 import sqlite3
 from typing import Any
-import logfire
 from pydantic_ai import Agent, RunContext
 
 CHUNK_ALERT = 'chunk_uploaded'
