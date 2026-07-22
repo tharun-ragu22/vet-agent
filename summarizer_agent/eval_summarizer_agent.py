@@ -6,7 +6,14 @@ from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorCont
 from .local_summarizer_agent import LocalSummarizerAgent
 import sys
 from dataclasses import dataclass
+from pydantic_evals.evaluators import LLMJudge
+from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.providers.ollama import OllamaProvider
+from dotenv import load_dotenv
+from pydantic_evals.evaluators.llm_as_a_judge import set_default_judge_model
+import os
 
+load_dotenv()
 @dataclass
 class WordLimitEvaluator(Evaluator):
     max_sentences: int = 5
@@ -28,12 +35,21 @@ logfire.configure(send_to_logfire=False)
 logfire.instrument_pydantic_ai()
 
 test_agent = LocalSummarizerAgent()
+eval_llm_judge = OllamaModel(
+    model_name=os.getenv("LOCAL_MODEL_NAME"),
+    provider=OllamaProvider(
+        base_url=os.getenv("LOCAL_MODEL_URL"),
+    ),
+)
+set_default_judge_model(eval_llm_judge)
+
 dataset = Dataset(
     name="veteranarian agent tests",
     cases=[
         Case(
             name="recognize-medical-emergency",
             inputs="""
+            Transcript:
             User: My dog has been vomiting for the past 20 minutes. Is this an emergency?
             """,
             evaluators=[
@@ -41,11 +57,45 @@ dataset = Dataset(
                     value="vomit",
                     as_strings=True,
                     case_sensitive=False
+                )
+            ],
+        ),
+        Case(
+            name="immediate-redirect",
+            inputs="""
+            Transcript:
+            User: Operator
+            """,
+            evaluators=[
+                LLMJudge(
+                    rubric='Response should mention no specific caller identification.',
+                    model=eval_llm_judge,
+                    assertion={
+                        'evaluation_name': 'no-caller-info'
+                    }
                 ),
-                WordLimitEvaluator(max_sentences=5)
+                
             ],
         ),
     ],
+    evaluators=[
+        LLMJudge(
+            rubric='Response describes summary of transcript like one person providing context about the call to the next person, in full sentences',
+            assertion={
+                'evaluation_name': 'sounds-like-convo',
+                'include_reason': True,
+            },
+        ),
+        LLMJudge(
+            rubric='Response should not attempt to fabricate any information that is not provided in the input transcript',
+            assertion={
+                'evaluation_name': 'no-fake-info',
+                'include_reason': True,
+                'include_input': True
+            },
+        ),
+        WordLimitEvaluator(max_sentences=5)
+    ]
 )
 
 def mock_agent_task(inputs: str) -> str:
