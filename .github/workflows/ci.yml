@@ -50,7 +50,7 @@ jobs:
           # Initialize an empty JSON array string
           FILES_JSON="["
           
-          for file in agent/eval*; do
+          for file in **/eval_*; do
             if [ -f "$file" ]; then
               base_name=$(basename "$file")
               clean_name="${base_name%%.*}"
