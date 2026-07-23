@@ -114,36 +114,37 @@ def test_redirect_endpoint_instructs_to_use_brief_endpoint(client):
     assert any(['brief-reception' in node.get('url','') for node in root.iter()])
 
 @pytest.fixture(scope='function')
-def brief_receptionist_client(request):
-    summary_text = request.param
+def brief_reception_summary_text(request):
+    return request.param
+
+@pytest.fixture(scope='function')
+def brief_reception_client(brief_reception_summary_text):
     async def mock_summarizer(context):
-        return summary_text
+        return brief_reception_summary_text
     app.dependency_overrides[get_agent] = get_test_agent
     app.dependency_overrides[get_summarizer] = lambda: mock_summarizer
     with TestClient(app) as c:
-        yield c, summary_text
+        yield c
     app.dependency_overrides.clear()
 
-
 @pytest.mark.parametrize(
-    'brief_receptionist_client',
+    'brief_reception_summary_text',
     ['example summary', 'example summary 2'],
     indirect=True,
 )
-def test_brief_receptionist_endpoint_sends_context_to_receptionist(brief_receptionist_client):
-    client, summary_text = brief_receptionist_client
+def test_brief_receptionist_endpoint_sends_context_to_receptionist(brief_reception_client, brief_reception_summary_text):
     example_call_sid = '1234'
 
-    with client.websocket_connect('/ws') as websocket:
+    with brief_reception_client.websocket_connect('/ws') as websocket:
         websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
         websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'})
         response = websocket.receive_json()
 
-    response = client.post('/brief-reception', data={"ParentCallSid": example_call_sid})
+    response = brief_reception_client.post('/brief-reception', data={"ParentCallSid": example_call_sid})
 
     root = ET.fromstring(response.text)
     say_nodes = root.findall('.//Say')
-    assert any([summary_text in node.text for node in say_nodes])
+    assert any([brief_reception_summary_text in node.text for node in say_nodes])
 
     gather_nodes = root.findall('Gather')
     assert any([node.get('input', '') == 'dtmf' for node in gather_nodes])

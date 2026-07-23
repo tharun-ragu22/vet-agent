@@ -33,6 +33,7 @@ jobs:
       - name: Run tests
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          CI: true
         run: |
           uv run pytest -v
 
@@ -157,5 +158,6 @@ jobs:
       - name: Run acceptance tests
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          CI: true
         run: |
           uv run pytest acceptance_tests.py -v
