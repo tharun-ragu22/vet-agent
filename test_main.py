@@ -113,66 +113,40 @@ def test_redirect_endpoint_instructs_to_use_brief_endpoint(client):
     assert root is not None
     assert any(['brief-reception' in node.get('url','') for node in root.iter()])
 
-# Initialize the FastAPI TestClient
 @pytest.fixture(scope='function')
-def brief_receptionist_client():
+def brief_receptionist_client(request):
+    summary_text = request.param
     async def mock_summarizer(context):
-        return "example summary"
+        return summary_text
     app.dependency_overrides[get_agent] = get_test_agent
-    app.dependency_overrides[get_summarizer] = lambda : mock_summarizer
+    app.dependency_overrides[get_summarizer] = lambda: mock_summarizer
     with TestClient(app) as c:
-        yield c
+        yield c, summary_text
     app.dependency_overrides.clear()
 
+
+@pytest.mark.parametrize(
+    'brief_receptionist_client',
+    ['example summary', 'example summary 2'],
+    indirect=True,
+)
 def test_brief_receptionist_endpoint_sends_context_to_receptionist(brief_receptionist_client):
-    # Given the agent decided to redirect the call
+    client, summary_text = brief_receptionist_client
     example_call_sid = '1234'
-    with brief_receptionist_client.websocket_connect('/ws') as websocket:
+
+    with client.websocket_connect('/ws') as websocket:
         websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
-        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'})
         response = websocket.receive_json()
-    
-    # When the telephony system posts the briefing endpoint
-    response = brief_receptionist_client.post('/brief-reception', data={"ParentCallSid": example_call_sid})
-    # print('received response', response.json())
-    # Then it should receive instructions to send the summary of the previous conversation to the receptionist
+
+    response = client.post('/brief-reception', data={"ParentCallSid": example_call_sid})
+
     root = ET.fromstring(response.text)
-    say_nodes = root.findall('.//Say') # look recursively through
-    assert any(["example summary" in node.text for node in say_nodes])
-    # And to ask them to press any key to continue talking with the user
+    say_nodes = root.findall('.//Say')
+    assert any([summary_text in node.text for node in say_nodes])
+
     gather_nodes = root.findall('Gather')
-    assert any([node.get('input','') == 'dtmf' for node in gather_nodes])
-
-
-@pytest.fixture(scope='function')
-def brief_receptionist_client2():
-    async def mock_summarizer(context):
-        return "example summary 2"
-    app.dependency_overrides[get_agent] = get_test_agent
-    app.dependency_overrides[get_summarizer] = lambda : mock_summarizer
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.clear()
-
-def test_brief_receptionist_endpoint_sends_context_to_receptionist2(brief_receptionist_client2):
-    # Given the agent decided to redirect the call
-    example_call_sid = '1235'
-    with brief_receptionist_client2.websocket_connect('/ws') as websocket:
-        websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
-        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
-        response = websocket.receive_json()
-    
-    # When the telephony system posts the briefing endpoint
-    response = brief_receptionist_client2.post('/brief-reception', data={"ParentCallSid": example_call_sid})
-    print('received response', response.text)
-    print('status', response.status_code)
-    # Then it should receive instructions to send the summary of the previous conversation to the receptionist
-    root = ET.fromstring(response.text)
-    say_nodes = root.findall('.//Say') # look recursively through
-    assert any(["example summary 2" in node.text for node in say_nodes])
-    # And to ask them to press any key to continue talking with the user
-    gather_nodes = root.findall('Gather')
-    assert any([node.get('input','') == 'dtmf' for node in gather_nodes])
+    assert any([node.get('input', '') == 'dtmf' for node in gather_nodes])
 
 @pytest.fixture(scope='function')
 def context_store_client_and_store():
