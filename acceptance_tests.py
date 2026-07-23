@@ -1,8 +1,9 @@
 import pytest
 from main import app, PORT
-
+import httpx
 import json
 import websockets
+import xml.etree.ElementTree as ET
   
 
 @pytest.mark.asyncio
@@ -47,3 +48,30 @@ async def test_two_connections_made_system_maintains_context():
 
             assert DOG2.lower() in response2["token"].lower()
             assert DOG2.lower() not in response1["token"].lower()
+
+@pytest.mark.asyncio
+async def test__after_redirect_receptionist_hears_summary():
+    # Given the agent decided to redirect the call
+    example_call_sid = "CA_test_123"
+    async with websockets.connect(f"ws://localhost:{PORT}/ws") as ws:
+        await ws.send(json.dumps({"type": "setup", "callSid": example_call_sid}))
+        await ws.send(
+            json.dumps(
+                {"type": "prompt", "voicePrompt": f"Help, my dog just got hit by a car, it's an emergency"}
+            )
+        )
+        await ws.recv()
+    
+    # When the receptionist picks up the phone
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f'http://localhost:{PORT}/brief-reception', data={"ParentCallSid": example_call_sid})
+        print(response.text)
+        # Then they should hear a summary of the previous call
+        
+        root = ET.fromstring(response.text)
+        say_nodes = root.findall('.//Say') # look recursively through
+        assert any(["dog" in node.text for node in say_nodes])
+        # And to ask them to press any key to continue talking with the user
+        gather_nodes = root.findall('Gather')
+        assert any([node.get('input','') == 'dtmf' for node in gather_nodes])
+    

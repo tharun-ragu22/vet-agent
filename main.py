@@ -9,6 +9,7 @@ import json
 from dotenv import load_dotenv
 import os
 from context_store.context_store import ContextStore, ConversationTurn
+from summarizer_agent.prod_summarizer_agent import ProdSummarizerAgent
 
 load_dotenv()
 
@@ -30,8 +31,12 @@ def create_transcript(context: list[ConversationTurn]) -> str:
     for turn in context:
         ret += f'{turn.role.capitalize()}: {turn.content}\n'
     return ret
-def summarizer(context: list[ConversationTurn]) -> str:
-    return 'real summary'
+
+async def summarizer(context: list[ConversationTurn]) -> str:
+    transcript = create_transcript(context)
+    summarize_agent = ProdSummarizerAgent()
+    summary = await summarize_agent.run_agent(transcript)
+    return summary.output
 
 def get_summarizer() -> Callable[[list[ConversationTurn]], str]:
     return summarizer
@@ -85,8 +90,8 @@ async def brief_reception(request: Request, summarizer = Depends(get_summarizer)
     resp = VoiceResponse()
     form_data = await request.form()
     call_id = form_data.get("ParentCallSid")
-    context = sessions[call_id]
-    summary : str = summarizer(context)
+    context = context_store.get_context(call_id)
+    summary : str = await summarizer(context)
     gather = resp.gather(input="dtmf")
     gather.say(summary)
     return Response(content=str(resp), media_type="application/xml")
