@@ -116,7 +116,8 @@ def test_redirect_endpoint_instructs_to_use_brief_endpoint(client):
 # Initialize the FastAPI TestClient
 @pytest.fixture(scope='function')
 def brief_receptionist_client():
-    mock_summarizer = lambda context : "example summary"
+    async def mock_summarizer(context):
+        return "example summary"
     app.dependency_overrides[get_agent] = get_test_agent
     app.dependency_overrides[get_summarizer] = lambda : mock_summarizer
     with TestClient(app) as c:
@@ -145,7 +146,8 @@ def test_brief_receptionist_endpoint_sends_context_to_receptionist(brief_recepti
 
 @pytest.fixture(scope='function')
 def brief_receptionist_client2():
-    mock_summarizer = lambda context : "example summary 2"
+    async def mock_summarizer(context):
+        return "example summary 2"
     app.dependency_overrides[get_agent] = get_test_agent
     app.dependency_overrides[get_summarizer] = lambda : mock_summarizer
     with TestClient(app) as c:
