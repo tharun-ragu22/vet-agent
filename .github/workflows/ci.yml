@@ -33,6 +33,7 @@ jobs:
       - name: Run tests
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          CI: true
         run: |
           uv run pytest -v
 
@@ -47,33 +48,31 @@ jobs:
       - name: Generate Matrix Output
         id: set-matrix
         run: |
-          # Initialize an empty JSON array string
+          shopt -s globstar nullglob
+
           FILES_JSON="["
-          
-          for file in agent/eval*; do
+
+          for file in **/eval_*.py; do
             if [ -f "$file" ]; then
-              base_name=$(basename "$file")
-              clean_name="${base_name%%.*}"
-              
-              # Append the clean name to our JSON string safely
-              FILES_JSON="${FILES_JSON}\"${clean_name}\","
+              # Strip .py, turn path separators into dots
+              module_path="${file%.py}"
+              module_path="${module_path//\//.}"
+
+              FILES_JSON="${FILES_JSON}\"${module_path}\","
             fi
           done
           
           # Remove the trailing comma (if files were found) and close the array
           FILES_JSON=$(echo "$FILES_JSON" | sed 's/,$//')
           FILES_JSON="${FILES_JSON}]"
-          
           echo "Generated JSON: $FILES_JSON"
-          
-          # Set the output for the next job to use
           echo "matrix=${FILES_JSON}" >> $GITHUB_OUTPUT
 
   agent_evals:
     needs: generate-matrix
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false 
+      fail-fast: false
       matrix:
         eval_name: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
@@ -85,7 +84,6 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          # Install a specific version of uv.
           version: "0.11.23"
 
       - name: Set up Python
@@ -108,7 +106,7 @@ jobs:
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
-          uv run python -m agent.${{ matrix.eval_name}}
+          uv run python -m ${{ matrix.eval_name }}
 
   agent-eval-pass:
     needs: agent_evals
@@ -160,5 +158,6 @@ jobs:
       - name: Run acceptance tests
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          CI: true
         run: |
           uv run pytest acceptance_tests.py -v

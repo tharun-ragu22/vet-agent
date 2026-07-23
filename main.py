@@ -2,21 +2,44 @@ from fastapi import FastAPI, Request, Response, Depends, WebSocket, WebSocketDis
 from agent.agent_interface import AgentBaseClass
 from agent.prod_agent import ProdAgent
 from contextlib import asynccontextmanager
+from twilio.twiml.voice_response import VoiceResponse, Dial
+from collections.abc import Callable
 import uvicorn
 import json
 from dotenv import load_dotenv
 import os
+from context_store.context_store import ContextStore, ConversationTurn
+from summarizer_agent.prod_summarizer_agent import ProdSummarizerAgent
 
 load_dotenv()
 
+context_store = ContextStore()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.agent = ProdAgent()
     yield
 
+def get_context_store() -> ContextStore:
+    return context_store
+
 def get_agent(websocket: WebSocket) -> AgentBaseClass:
     return websocket.app.state.agent
+
+def create_transcript(context: list[ConversationTurn]) -> str:
+    ret = 'Transcript:\n'
+    for turn in context:
+        ret += f'{turn.role.capitalize()}: {turn.content}\n'
+    return ret
+
+async def summarizer(context: list[ConversationTurn]) -> str:
+    transcript = create_transcript(context)
+    summarize_agent = ProdSummarizerAgent()
+    summary = await summarize_agent.run_agent(transcript)
+    return summary.output
+
+def get_summarizer() -> Callable[[list[ConversationTurn]], str]:
+    return summarizer
 
 app = FastAPI(lifespan=lifespan)
 
@@ -54,13 +77,24 @@ async def redirect(request : Request):
     transfer_number = handoff_data_dict.get('transferTo')
     print('transfer number', transfer_number)
     
-    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
-    <Response>
-        <Say>Transferring you now, please hold.</Say>
-        <Dial>{transfer_number}</Dial>
-    </Response>"""
+    resp = VoiceResponse()
+    resp.say("Transferring you now, please hold.")
+    dial = Dial()
+    dial.number(transfer_number.strip(), url="/brief-reception")
+    resp.append(dial)
 
-    return Response(content=twiml, media_type='application/xml')
+    return Response(content=str(resp), media_type="application/xml")
+
+@app.post('/brief-reception')
+async def brief_reception(request: Request, summarizer = Depends(get_summarizer)):
+    resp = VoiceResponse()
+    form_data = await request.form()
+    call_id = form_data.get("ParentCallSid")
+    context = context_store.get_context(call_id)
+    summary : str = await summarizer(context)
+    gather = resp.gather(input="dtmf")
+    gather.say(summary)
+    return Response(content=str(resp), media_type="application/xml")
     
 
 def get_websocket_handler():
@@ -68,7 +102,7 @@ def get_websocket_handler():
 
 
 
-async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
+async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass, context_store: ContextStore):
     call_sid = None
     
     try:
@@ -85,9 +119,10 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
                 
             elif message["type"] == "prompt":
                 print(f"Processing prompt: {message['voicePrompt']}")
+                context_store.add_message(websocket.call_sid, role='user', content=message['voicePrompt'])
                 conversation = sessions[websocket.call_sid]
-                print("current_conversation:", conversation)
                 response = await agent.run_agent(message['voicePrompt'], message_history=conversation)
+                context_store.add_message(websocket.call_sid, role='agent', content=response.output)
                 if response.output == 'REDIRECT':
                     redirect_phone_number = os.getenv("REDIRECT_PHONE_NUMBER")
                     await websocket.send_text(
@@ -123,11 +158,11 @@ async def websocket_handler(websocket: WebSocket, agent: AgentBaseClass):
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websocket_handler), agent : AgentBaseClass = Depends(get_agent)):
+async def websocket_endpoint(websocket: WebSocket, handler = Depends(get_websocket_handler), agent : AgentBaseClass = Depends(get_agent), context_store = Depends(get_context_store)):
     """WebSocket endpoint for real-time communication"""
     await websocket.accept()
 
-    await handler(websocket, agent)
+    await handler(websocket, agent, context_store)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)

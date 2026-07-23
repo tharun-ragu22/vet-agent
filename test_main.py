@@ -2,18 +2,20 @@ import xml.etree.ElementTree as ET
 import pytest
 from fastapi.testclient import TestClient
 from agent.mock_agent import MockAgent
-from main import app, GREETING_TEXT, get_agent
+from main import app, GREETING_TEXT, create_transcript, get_agent, get_summarizer, get_context_store
+from context_store.context_store import ContextStore, ConversationTurn
 import json
 
 def get_test_agent():
     return MockAgent(None, None)
 
 
+
+
 # Initialize the FastAPI TestClient
 @pytest.fixture(scope='function')
 def client():
     app.dependency_overrides[get_agent] = get_test_agent
-    # app.dependency_overrides[get_websocket_handler] = get_test_websocket_handler
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
@@ -80,7 +82,7 @@ def test_websocket_when_redirect_system_transfers_and_closes_connection(client):
         # Then the system transfers to a human
         assert response.get('type') == 'end'
         assert response.get('handoffData') is not None
-        assert json.loads(response.get('handoffData')).get('transferTo') != ''
+        assert json.loads(response.get('handoffData')).get('transferTo','') != ''
 
 def test_redirect_endpoint_redirects_to_number(client):
     # Given the agent could not answer the user query
@@ -94,4 +96,102 @@ def test_redirect_endpoint_redirects_to_number(client):
     # Then the user is transferred to the clinic's phone number
     root = ET.fromstring(response.text)
     dial_node = root.find('Dial')
-    assert dial_node.text is not None and dial_node.text == expected_redirect_number
+    assert any([elem.text == expected_redirect_number for elem in dial_node.iter()])
+
+def test_redirect_endpoint_instructs_to_use_brief_endpoint(client):
+    # Given the agent could not answer the user query
+    expected_redirect_number = '+15551234567'
+    expected_summary_text = "expected summary text"
+    redirect_data = {
+        "HandoffData": f'{{"transferTo": "{expected_redirect_number}", "callContext": "{expected_summary_text}"}}',
+    }
+    # And signalled to redirect the call
+    # When the telephony system posts the redirect endpoint
+    response = client.post('/redirect', data=redirect_data)
+    # Then it should receive instructions to post to the briefing endpoint
+    root = ET.fromstring(response.text)
+    assert root is not None
+    assert any(['brief-reception' in node.get('url','') for node in root.iter()])
+
+@pytest.fixture(scope='function')
+def brief_reception_summary_text(request):
+    return request.param
+
+@pytest.fixture(scope='function')
+def brief_reception_client(brief_reception_summary_text):
+    async def mock_summarizer(context):
+        return brief_reception_summary_text
+    app.dependency_overrides[get_agent] = get_test_agent
+    app.dependency_overrides[get_summarizer] = lambda: mock_summarizer
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+@pytest.mark.parametrize(
+    'brief_reception_summary_text',
+    ['example summary', 'example summary 2'],
+    indirect=True,
+)
+def test_brief_receptionist_endpoint_sends_context_to_receptionist(brief_reception_client, brief_reception_summary_text):
+    example_call_sid = '1234'
+
+    with brief_reception_client.websocket_connect('/ws') as websocket:
+        websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'})
+        response = websocket.receive_json()
+
+    response = brief_reception_client.post('/brief-reception', data={"ParentCallSid": example_call_sid})
+
+    root = ET.fromstring(response.text)
+    say_nodes = root.findall('.//Say')
+    assert any([brief_reception_summary_text in node.text for node in say_nodes])
+
+    gather_nodes = root.findall('Gather')
+    assert any([node.get('input', '') == 'dtmf' for node in gather_nodes])
+
+@pytest.fixture(scope='function')
+def context_store_client_and_store():
+    mock_summarizer = lambda context : "example summary"
+    app.dependency_overrides[get_agent] = get_test_agent
+    app.dependency_overrides[get_summarizer] = lambda : mock_summarizer
+    external_context_store = ContextStore()
+    app.dependency_overrides[get_context_store] = lambda : external_context_store
+    with TestClient(app) as c:
+        yield c, external_context_store
+    app.dependency_overrides.clear()
+
+
+def test_brief_receptionist_endpoint_gets_context_from_previous_conversation(context_store_client_and_store):
+    context_store_client, external_context_store = context_store_client_and_store
+    # Given the agent decided to redirect the call
+    example_call_sid = '1235'
+    expected_text = "hey how's it going"
+    with context_store_client.websocket_connect('/ws') as websocket:
+        websocket.send_json({'type': 'setup', 'callSid': example_call_sid})
+        websocket.send_json({'type': 'prompt', 'voicePrompt': expected_text})
+        websocket.send_json({'type': 'prompt', 'voicePrompt': 'REDIRECT'}) # mock agent echoes prompt
+        # When the agent disconnects from the user
+    
+    
+    # Then the system has the conversation for summarization
+    context = external_context_store.get_context(example_call_sid)
+    print('returned contenxt', context)
+    assert any([turn.role == 'user' and turn.content == expected_text for turn in context])
+    assert any([turn.role == 'agent' for turn in context])
+
+def test_create_transcript_sample_context_should_create_transcript_string():
+    example_conversation=[
+        ConversationTurn(role='agent',content='hey, how\'s it going'),
+        ConversationTurn(role='user',content='hi')
+    ]
+    transcript = create_transcript(example_conversation)
+    transcript_lines = transcript.splitlines()
+
+    assert transcript_lines[0] == 'Transcript:'
+    for i in range(len(example_conversation)):
+        assert example_conversation[i].role.capitalize() == transcript_lines[i+1].split(sep=': ', maxsplit=1)[0]
+        assert example_conversation[i].content == transcript_lines[i+1].split(sep=': ', maxsplit=1)[1]
+
+def test_create_transcript_empty_context_should_just_return_title():
+    transcript = create_transcript([])
+    assert transcript == 'Transcript:\n'
