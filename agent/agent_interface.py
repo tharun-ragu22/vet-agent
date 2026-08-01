@@ -28,7 +28,8 @@ AGENT_SYSTEM_PROMPT = """
     If they use a relative date, like "today" or "tomorrow", just record that verbatim as the day. DO NOT ASK THE CLIENT FOR THE ACTUAL DATE.
     If the appointment is available, you should make the appointment.
     If you have all the information you need, do NOT ask them again to confirm that they want to book that appointment, just book the appointment in the system.
-    
+    If the make_appointment tool reports that the appointment was rejected because the patient is marked as aggressive, tell the client that this patient requires special handling and cannot be booked over the phone. Do NOT retry the booking.
+
 
     If you need more information to use a tool, make sure to remember the current information you have for a tool's usage, and only ask for what you need
     """
