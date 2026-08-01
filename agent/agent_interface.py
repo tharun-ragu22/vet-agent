@@ -6,6 +6,9 @@ from pydantic_ai import Agent, RunContext
 
 CHUNK_ALERT = 'chunk_uploaded'
 
+class PatientAggressiveError(Exception):
+    """Raised when an appointment is rejected because the patient is marked as aggressive."""
+
 AGENT_SYSTEM_PROMPT = """
     You are a receptionist agent for a veteranarian office. You will use local tools whenever you can.
     YOUR ANSWER MUST BE IN PLAINTEXT, NO ASTERISKS OR ANYTHING.
@@ -49,15 +52,20 @@ class AgentBaseClass(ABC):
         self._register_tools()
     
     def _init_db(self):
-        cursor = self.deps.db_conn.cursor()
+        AgentBaseClass.create_schema(self.deps.db_conn)
+
+    @staticmethod
+    def create_schema(db_connection: sqlite3.Connection):
+        cursor = db_connection.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS appointments (patient_name TEXT PRIMARY KEY, day TEXT, time TEXT)")
-        self.deps.db_conn.commit()
+        cursor.execute("CREATE TABLE IF NOT EXISTS patients (patient_name TEXT PRIMARY KEY, is_aggressive INTEGER NOT NULL DEFAULT 0)")
+        db_connection.commit()
     
     def _register_tools(self):
         @self._agent.tool
         def make_appointment(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
             """Makes the appointment in the system"""
-            self.make_appointment(ctx, patient_name, day, time)
+            return self.make_appointment(ctx, patient_name, day, time)
 
         @self._agent.tool
         def check_availability(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> list[Any]:
@@ -66,14 +74,40 @@ class AgentBaseClass(ABC):
 
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
+        if AgentBaseClass.is_patient_aggressive_impl(patient_name, db_connection):
+            raise PatientAggressiveError(
+                f"Appointment for {patient_name} was rejected because the patient is marked as aggressive."
+            )
+
         cursor = db_connection.cursor()
-        
+
         cursor.execute(
             "INSERT INTO appointments (patient_name, day, time) VALUES (?, ?, ?)",
             (patient_name, day, time)
         )
         db_connection.commit()
-    
+
+    @staticmethod
+    def is_patient_aggressive_impl(patient_name: str, db_connection: sqlite3.Connection) -> bool:
+        cursor = db_connection.cursor()
+        result = cursor.execute(
+            "SELECT is_aggressive FROM patients WHERE lower(patient_name) = lower(?)",
+            (patient_name,)
+        ).fetchone()
+        return bool(result[0]) if result else False
+
+    @staticmethod
+    def mark_patient_aggressive_impl(patient_name: str, db_connection: sqlite3.Connection, is_aggressive: bool = True) -> None:
+        cursor = db_connection.cursor()
+        cursor.execute(
+            """
+            INSERT INTO patients (patient_name, is_aggressive) VALUES (?, ?)
+            ON CONFLICT(patient_name) DO UPDATE SET is_aggressive = excluded.is_aggressive
+            """,
+            (patient_name, int(is_aggressive))
+        )
+        db_connection.commit()
+
     @staticmethod
     def check_appointment_impl(patient_name: str, day: str | None, time: str | None, db_connection: sqlite3.Connection):
         cursor = db_connection.cursor()
@@ -89,7 +123,11 @@ class AgentBaseClass(ABC):
     def make_appointment(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
         """Makes the appointment in the system"""
         print(f'make_appointment: making appointment for {patient_name} at {day} {time}')
-        AgentBaseClass.make_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
+        try:
+            AgentBaseClass.make_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
+            return f'Appointment made for {patient_name} on {day} at {time}.'
+        except PatientAggressiveError as e:
+            return str(e)
     
     def check_availability(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
         """Makes the appointment in the system"""
