@@ -2,11 +2,26 @@ import asyncio
 import logfire
 from pydantic_evals import Case, Dataset
 from dataclasses import dataclass
-from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext, Contains
+from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext, LLMJudge
+from pydantic_evals.evaluators.llm_as_a_judge import set_default_judge_model
+from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.providers.ollama import OllamaProvider
 from .local_agent import LocalAgent
 from .agent_interface import AgentBaseClass
+from dotenv import load_dotenv
 import sys
 import sqlite3
+import os
+
+load_dotenv()
+
+eval_llm_judge = OllamaModel(
+    model_name=os.getenv("LOCAL_MODEL_NAME"),
+    provider=OllamaProvider(
+        base_url=os.getenv("LOCAL_MODEL_URL"),
+    ),
+)
+set_default_judge_model(eval_llm_judge)
 
 connection = sqlite3.connect(":memory:", check_same_thread=False)
 cursor = connection.cursor()
@@ -41,6 +56,13 @@ class AppointmentRecordedInDB(Evaluator):
     def evaluate(self, ctx: EvaluatorContext) -> bool:
         result = AgentBaseClass.check_appointment_impl(self.patient_name, None, None, connection)
         return len(result) == 1
+
+
+@dataclass
+class OutputDoesNotLeakAggressiveLabel(Evaluator):
+    """Check that the caller-facing response never uses the word "aggressive" itself"""
+    def evaluate(self, ctx: EvaluatorContext) -> bool:
+        return "aggressive" not in str(ctx.output).lower()
 
 
 @dataclass
@@ -89,10 +111,14 @@ dataset = Dataset(
                 ),
                 MakeAppointment_ResponseRejectsAggressivePatient(),
                 AppointmentNotRecordedInDB(patient_name=AGGRESSIVE_PATIENT_NAME),
-                Contains(
-                    value="aggressive",
-                    as_strings=True,
-                    case_sensitive=False,
+                OutputDoesNotLeakAggressiveLabel(),
+                LLMJudge(
+                    rubric='Response should tell the caller that the appointment requires special handling',
+                    assertion={'evaluation_name': 'mentions-special-handling'}
+                ),
+                LLMJudge(
+                    rubric='Response should tell the caller that the appointment cannot be booked over the phone',
+                    assertion={'evaluation_name': 'cannot-book-over-phone'}
                 ),
             ],
         ),
