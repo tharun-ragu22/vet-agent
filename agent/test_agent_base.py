@@ -94,21 +94,29 @@ def test_is_patient_aggressive_returns_false_for_unknown_patient(conn):
     # Then it reports the patient as not aggressive
     assert result is False
 
-def test_make_appointment_rejected_if_patient_marked_aggressive(conn):
+def test_check_availability_rejected_if_patient_marked_aggressive(conn):
     # Given a patient is marked as aggressive
     patient_name = 'rex'
     day = '2026-01-01'
     time = '10:30'
     AgentBaseClass.mark_patient_aggressive_impl(patient_name, conn)
 
-    # When the agent tries to make the appointment
-    # Then the system rejects the appointment
+    # When the agent checks availability for that patient
+    # Then the system rejects the check
     with pytest.raises(PatientAggressiveError):
-        AgentBaseClass.make_appointment_impl(patient_name, day, time, conn)
+        AgentBaseClass.check_availability_impl(patient_name, day, time, conn)
 
-    # And no appointment is recorded
-    result = AgentBaseClass.check_appointment_impl(patient_name, day, time, conn)
-    assert len(result) == 0
+def test_check_availability_allowed_if_patient_not_marked_aggressive(conn):
+    # Given a patient is not marked as aggressive
+    patient_name = 'beef'
+    day = '2026-01-01'
+    time = '10:30'
+
+    # When the agent checks availability for that patient
+    result = AgentBaseClass.check_availability_impl(patient_name, day, time, conn)
+
+    # Then it returns the normal availability query results
+    assert result == []
 
 def test_make_appointment_allowed_if_patient_not_marked_aggressive(conn):
     # Given a patient is not marked as aggressive
@@ -123,7 +131,22 @@ def test_make_appointment_allowed_if_patient_not_marked_aggressive(conn):
     result = AgentBaseClass.check_appointment_impl(patient_name, day, time, conn)
     assert len(result) == 1
 
-def test_make_appointment_tool_returns_rejection_message_when_patient_aggressive(conn):
+def test_make_appointment_impl_ignores_aggressive_flag(conn):
+    # Given a patient is marked as aggressive
+    # (the rejection now happens at check_availability time, not here)
+    patient_name = 'rex'
+    day = '2026-01-01'
+    time = '10:30'
+    AgentBaseClass.mark_patient_aggressive_impl(patient_name, conn)
+
+    # When the agent makes the appointment directly
+    AgentBaseClass.make_appointment_impl(patient_name, day, time, conn)
+
+    # Then the appointment is recorded
+    result = AgentBaseClass.check_appointment_impl(patient_name, day, time, conn)
+    assert len(result) == 1
+
+def test_check_availability_tool_returns_rejection_message_when_patient_aggressive(conn):
     # Given a patient is marked as aggressive
     patient_name = 'rex'
     day = '2026-01-01'
@@ -133,9 +156,8 @@ def test_make_appointment_tool_returns_rejection_message_when_patient_aggressive
     agent_instance = AgentBaseClass.__new__(AgentBaseClass)
     ctx = _FakeContext(conn)
 
-    # When the make_appointment tool is invoked
-    result = agent_instance.make_appointment(ctx, patient_name, day, time)
+    # When the check_availability tool is invoked
+    result = agent_instance.check_availability(ctx, patient_name, day, time)
 
-    # Then it returns a rejection message and does not book the appointment
+    # Then it returns a rejection message
     assert 'aggressive' in result.lower()
-    assert len(AgentBaseClass.check_appointment_impl(patient_name, day, time, conn)) == 0

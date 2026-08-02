@@ -28,7 +28,7 @@ AGENT_SYSTEM_PROMPT = """
     If they use a relative date, like "today" or "tomorrow", just record that verbatim as the day. DO NOT ASK THE CLIENT FOR THE ACTUAL DATE.
     If the appointment is available, you should make the appointment.
     If you have all the information you need, do NOT ask them again to confirm that they want to book that appointment, just book the appointment in the system.
-    If the make_appointment tool reports that the appointment was rejected because the patient is marked as aggressive, tell the client that this patient requires special handling and cannot be booked over the phone. Do NOT retry the booking.
+    If the check_availability tool reports that the appointment was rejected because the patient is marked as aggressive, tell the client that this patient requires special handling and cannot be booked over the phone. Do NOT proceed with making the appointment.
 
 
     If you need more information to use a tool, make sure to remember the current information you have for a tool's usage, and only ask for what you need
@@ -69,17 +69,12 @@ class AgentBaseClass(ABC):
             return self.make_appointment(ctx, patient_name, day, time)
 
         @self._agent.tool
-        def check_availability(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> list[Any]:
+        def check_availability(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> Any:
             """Checks if appointment is available"""
             return self.check_availability(ctx, patient_name, day, time)
 
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
-        if AgentBaseClass.is_patient_aggressive_impl(patient_name, db_connection):
-            raise PatientAggressiveError(
-                f"Appointment for {patient_name} was rejected because the patient is marked as aggressive."
-            )
-
         cursor = db_connection.cursor()
 
         cursor.execute(
@@ -87,6 +82,14 @@ class AgentBaseClass(ABC):
             (patient_name, day, time)
         )
         db_connection.commit()
+
+    @staticmethod
+    def check_availability_impl(patient_name: str, day: str | None, time: str | None, db_connection: sqlite3.Connection):
+        if AgentBaseClass.is_patient_aggressive_impl(patient_name, db_connection):
+            raise PatientAggressiveError(
+                f"Appointment for {patient_name} was rejected because the patient is marked as aggressive."
+            )
+        return AgentBaseClass.check_appointment_impl(patient_name, day, time, db_connection)
 
     @staticmethod
     def is_patient_aggressive_impl(patient_name: str, db_connection: sqlite3.Connection) -> bool:
@@ -124,16 +127,16 @@ class AgentBaseClass(ABC):
     def make_appointment(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
         """Makes the appointment in the system"""
         print(f'make_appointment: making appointment for {patient_name} at {day} {time}')
+        AgentBaseClass.make_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
+        return f'Appointment made for {patient_name} on {day} at {time}.'
+
+    def check_availability(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str):
+        """Checks if appointment is available"""
+        print(f'check_appointment: checking appointment for {patient_name} at {day} {time}')
         try:
-            AgentBaseClass.make_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
-            return f'Appointment made for {patient_name} on {day} at {time}.'
+            return AgentBaseClass.check_availability_impl(patient_name, day, time, ctx.deps.db_conn)
         except PatientAggressiveError as e:
             return str(e)
-    
-    def check_availability(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
-        """Makes the appointment in the system"""
-        print(f'check_appointment: checking appointment for {patient_name} at {day} {time}')
-        return AgentBaseClass.check_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
 
     async def run_agent(self, input: str, message_history = None):
         result = await self._agent.run(input, deps=self.deps, message_history=message_history)
