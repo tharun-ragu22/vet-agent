@@ -66,26 +66,40 @@ class OutputDoesNotLeakAggressiveLabel(Evaluator):
 
 
 @dataclass
-class MakeAppointment_ResponseRejectsAggressivePatient(Evaluator):
-    """Check that the make_appointment tool reported an aggressive-patient rejection"""
+class CheckAvailability_ResponseRejectsAggressivePatient(Evaluator):
+    """Check that the check_availability tool reported an aggressive-patient rejection"""
     def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
         calls = ctx.span_tree.find(
+            {
+                "and_": [
+                    {"name_equals": "running tool"},
+                    {"has_attributes": {"gen_ai.tool.name": "check_availability"}},
+                ]
+            }
+        )
+        if not calls:
+            return EvaluationReason(value=False, reason="no check_availability calls found")
+
+        tool_response = calls[0].attributes.get("tool_response")
+        print("check_availability response:", tool_response)
+
+        return EvaluationReason(
+            value=tool_response is not None and "aggressive" in str(tool_response).lower(),
+            reason="tool response should mention the aggressive-patient rejection"
+        )
+
+
+@dataclass
+class MakeAppointmentNotCalled(Evaluator):
+    """Check that the make_appointment tool was never invoked"""
+    def evaluate(self, ctx: EvaluatorContext) -> bool:
+        return not ctx.span_tree.any(
             {
                 "and_": [
                     {"name_equals": "running tool"},
                     {"has_attributes": {"gen_ai.tool.name": "make_appointment"}},
                 ]
             }
-        )
-        if not calls:
-            return EvaluationReason(value=False, reason="no make_appointment calls found")
-
-        tool_response = calls[0].attributes.get("tool_response")
-        print("make_appointment response:", tool_response)
-
-        return EvaluationReason(
-            value=tool_response is not None and "aggressive" in str(tool_response).lower(),
-            reason="tool response should mention the aggressive-patient rejection"
         )
 
 
@@ -107,9 +121,10 @@ dataset = Dataset(
             """,
             evaluators=[
                 HasMatchingSpan(
-                    query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
+                    query={"has_attributes": {"gen_ai.tool.name": "check_availability"}}
                 ),
-                MakeAppointment_ResponseRejectsAggressivePatient(),
+                CheckAvailability_ResponseRejectsAggressivePatient(),
+                MakeAppointmentNotCalled(),
                 AppointmentNotRecordedInDB(patient_name=AGGRESSIVE_PATIENT_NAME),
                 OutputDoesNotLeakAggressiveLabel(),
                 LLMJudge(
