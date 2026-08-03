@@ -6,6 +6,9 @@ from pydantic_ai import Agent, RunContext
 
 CHUNK_ALERT = 'chunk_uploaded'
 
+class PatientAggressiveError(Exception):
+    """Raised when an appointment is rejected because the patient is marked as aggressive."""
+
 AGENT_SYSTEM_PROMPT = """
     You are a receptionist agent for a veteranarian office. You will use local tools whenever you can.
     YOUR ANSWER MUST BE IN PLAINTEXT, NO ASTERISKS OR ANYTHING.
@@ -25,7 +28,8 @@ AGENT_SYSTEM_PROMPT = """
     If they use a relative date, like "today" or "tomorrow", just record that verbatim as the day. DO NOT ASK THE CLIENT FOR THE ACTUAL DATE.
     If the appointment is available, you should make the appointment.
     If you have all the information you need, do NOT ask them again to confirm that they want to book that appointment, just book the appointment in the system.
-    
+    If the check_availability tool reports that the appointment was rejected because the patient is marked as aggressive, tell the client that this patient requires special handling and cannot be booked over the phone. Do NOT proceed with making the appointment.
+
 
     If you need more information to use a tool, make sure to remember the current information you have for a tool's usage, and only ask for what you need
     """
@@ -49,31 +53,65 @@ class AgentBaseClass(ABC):
         self._register_tools()
     
     def _init_db(self):
-        cursor = self.deps.db_conn.cursor()
+        AgentBaseClass.create_schema(self.deps.db_conn)
+
+    @staticmethod
+    def create_schema(db_connection: sqlite3.Connection):
+        cursor = db_connection.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS appointments (patient_name TEXT PRIMARY KEY, day TEXT, time TEXT)")
-        self.deps.db_conn.commit()
+        cursor.execute("CREATE TABLE IF NOT EXISTS patients (patient_name TEXT PRIMARY KEY, is_aggressive INTEGER NOT NULL DEFAULT 0)")
+        db_connection.commit()
     
     def _register_tools(self):
         @self._agent.tool
         def make_appointment(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
             """Makes the appointment in the system"""
-            self.make_appointment(ctx, patient_name, day, time)
+            return self.make_appointment(ctx, patient_name, day, time)
 
         @self._agent.tool
-        def check_availability(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> list[Any]:
+        def check_availability(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> Any:
             """Checks if appointment is available"""
             return self.check_availability(ctx, patient_name, day, time)
 
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
         cursor = db_connection.cursor()
-        
+
         cursor.execute(
             "INSERT INTO appointments (patient_name, day, time) VALUES (?, ?, ?)",
             (patient_name, day, time)
         )
         db_connection.commit()
-    
+
+    @staticmethod
+    def check_availability_impl(patient_name: str, day: str | None, time: str | None, db_connection: sqlite3.Connection):
+        if AgentBaseClass.is_patient_aggressive_impl(patient_name, db_connection):
+            raise PatientAggressiveError(
+                f"Appointment for {patient_name} was rejected because the patient is marked as aggressive."
+            )
+        return AgentBaseClass.check_appointment_impl(patient_name, day, time, db_connection)
+
+    @staticmethod
+    def is_patient_aggressive_impl(patient_name: str, db_connection: sqlite3.Connection) -> bool:
+        cursor = db_connection.cursor()
+        result = cursor.execute(
+            "SELECT is_aggressive FROM patients WHERE lower(patient_name) = lower(?)",
+            (patient_name,)
+        ).fetchone()
+        return bool(result[0]) if result else False
+
+    @staticmethod
+    def mark_patient_aggressive_impl(patient_name: str, db_connection: sqlite3.Connection, is_aggressive: bool = True) -> None:
+        cursor = db_connection.cursor()
+        cursor.execute(
+            """
+            INSERT INTO patients (patient_name, is_aggressive) VALUES (?, ?)
+            ON CONFLICT(patient_name) DO UPDATE SET is_aggressive = excluded.is_aggressive
+            """,
+            (patient_name, int(is_aggressive))
+        )
+        db_connection.commit()
+
     @staticmethod
     def check_appointment_impl(patient_name: str, day: str | None, time: str | None, db_connection: sqlite3.Connection):
         cursor = db_connection.cursor()
@@ -90,11 +128,15 @@ class AgentBaseClass(ABC):
         """Makes the appointment in the system"""
         print(f'make_appointment: making appointment for {patient_name} at {day} {time}')
         AgentBaseClass.make_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
-    
-    def check_availability(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
-        """Makes the appointment in the system"""
+        return f'Appointment made for {patient_name} on {day} at {time}.'
+
+    def check_availability(self, ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str):
+        """Checks if appointment is available"""
         print(f'check_appointment: checking appointment for {patient_name} at {day} {time}')
-        return AgentBaseClass.check_appointment_impl(patient_name, day, time, ctx.deps.db_conn)
+        try:
+            return AgentBaseClass.check_availability_impl(patient_name, day, time, ctx.deps.db_conn)
+        except PatientAggressiveError as e:
+            return str(e)
 
     async def run_agent(self, input: str, message_history = None):
         result = await self._agent.run(input, deps=self.deps, message_history=message_history)
