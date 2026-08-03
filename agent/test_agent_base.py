@@ -146,7 +146,7 @@ def test_make_appointment_impl_ignores_aggressive_flag(conn):
     result = AgentBaseClass.check_appointment_impl(patient_name, day, time, conn)
     assert len(result) == 1
 
-def test_check_availability_tool_returns_rejection_message_when_patient_aggressive(conn):
+def test_check_availability_impl_returns_rejection_message_when_patient_aggressive(conn):
     # Given a patient is marked as aggressive
     patient_name = 'rex'
     day = '2026-01-01'
@@ -157,7 +157,11 @@ def test_check_availability_tool_returns_rejection_message_when_patient_aggressi
     ctx = _FakeContext(conn)
 
     # When the check_availability tool is invoked
-    result = agent_instance.check_availability(ctx, patient_name, day, time)
+    try:
+        result = AgentBaseClass.check_availability_impl(patient_name, day, time, conn)
 
-    # Then it returns a rejection message
-    assert 'aggressive' in result.lower()
+    except Exception as e:
+        # Then it returns a rejection message
+        assert 'aggressive' in str(e)
+    else:
+        pytest.fail()
