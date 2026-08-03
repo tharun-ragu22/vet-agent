@@ -23,17 +23,6 @@ def conn():
         AgentBaseClass.create_schema(connection)
         yield connection
 
-
-class _FakeDeps:
-    def __init__(self, db_conn):
-        self.db_conn = db_conn
-
-
-class _FakeContext:
-    def __init__(self, db_conn):
-        self.deps = _FakeDeps(db_conn)
-
-
 def test_make_appointment(conn):
     # Given the user wants to make appointment
     # And the appointment is available
@@ -153,13 +142,9 @@ def test_check_availability_impl_returns_rejection_message_when_patient_aggressi
     time = '10:30'
     AgentBaseClass.mark_patient_aggressive_impl(patient_name, conn)
 
-    agent_instance = AgentBaseClass.__new__(AgentBaseClass)
-    ctx = _FakeContext(conn)
-
     # When the check_availability tool is invoked
     try:
-        result = AgentBaseClass.check_availability_impl(patient_name, day, time, conn)
-
+        AgentBaseClass.check_availability_impl(patient_name, day, time, conn)
     except Exception as e:
         # Then it returns a rejection message
         assert 'aggressive' in str(e)
