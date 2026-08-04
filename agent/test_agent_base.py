@@ -1,7 +1,7 @@
 import sqlite3
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta, date
 import pytest
 
 # 1. Force Python to see the root directory before doing ANY imports
@@ -159,3 +159,12 @@ def test_get_datetime_from_phrase_returns_todays_date():
     # Then the tool returns today's date
     expected_date = datetime.now().date()
     assert acc_datetime.date() == expected_date
+
+def test_get_datetime_from_phrase_today_at_five_pm():
+    # Given the agent has parsed out 'today at 5 P.M.' as the day to make the appointment
+    TODAY_STR = 'today at 5 P.M.'
+    # When the agent uses the tool on this string
+    acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(TODAY_STR)
+    # Then the tool returns the correct datetime
+    expected_date = datetime.now().replace(hour=17, minute=0, second = 0, microsecond=0)
+    assert acc_datetime == expected_date
