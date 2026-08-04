@@ -78,10 +78,10 @@ class AgentBaseClass(ABC):
     @staticmethod
     def get_datetime_from_phrase_impl(phrase: str) -> datetime:
         
-        cal = parsedatetime.Calendar()
+        cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)
 
         
-        dt, status = cal.parseDT(phrase)
+        dt, _ = cal.parseDT(phrase)
         return dt
 
     @staticmethod
