@@ -1,7 +1,8 @@
 import sqlite3
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
+from freezegun import freeze_time
 import pytest
 
 # 1. Force Python to see the root directory before doing ANY imports
@@ -167,4 +168,14 @@ def test_get_datetime_from_phrase_today_at_five_pm():
     acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(TODAY_STR)
     # Then the tool returns the correct datetime
     expected_date = datetime.now().replace(hour=17, minute=0, second = 0, microsecond=0)
+    assert acc_datetime == expected_date
+
+@freeze_time("2026-08-03 12:00:00")
+def test_get_datetime_from_phrase_today_is_monday_get_thursday_at_11_am():
+    # Given the agent has parsed out 'today at 5 P.M.' as the day to make the appointment
+    DATE_PHRASE = 'thursday at 11 A.M.'
+    # When the agent uses the tool on this string
+    acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(DATE_PHRASE)
+    # Then the tool returns the correct datetime
+    expected_date = (datetime.now()+timedelta(days=3)).replace(hour=11, minute=0, second = 0, microsecond=0)
     assert acc_datetime == expected_date
