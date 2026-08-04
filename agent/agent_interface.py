@@ -3,6 +3,8 @@ from dataclasses import dataclass
 import sqlite3
 from typing import Any
 from pydantic_ai import Agent, RunContext
+import parsedatetime
+from datetime import datetime
 
 CHUNK_ALERT = 'chunk_uploaded'
 
@@ -72,6 +74,15 @@ class AgentBaseClass(ABC):
         def check_availability(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> Any:
             """Checks if appointment is available"""
             return self.check_availability(ctx, patient_name, day, time)
+
+    @staticmethod
+    def get_datetime_from_phrase_impl(phrase: str) -> datetime:
+        
+        cal = parsedatetime.Calendar()
+
+        
+        dt, status = cal.parseDT(phrase)
+        return dt
 
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):

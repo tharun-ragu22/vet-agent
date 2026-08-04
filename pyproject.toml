@@ -12,6 +12,7 @@ dependencies = [
     "langchain-ollama>=1.1.0",
     "logfire>=4.37.0",
     "openai>=2.43.0",
+    "parsedatetime>=2.6",
     "pydantic-ai-slim[google,openai]>=1.107.0",
     "pydantic-evals[logfire]>=1.107.0",
     "pytest>=9.1.1",

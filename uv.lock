@@ -1,6 +1,12 @@
 version = 1
 revision = 3
 requires-python = ">=3.12"
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+]
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -1174,6 +1180,15 @@ wheels = [
 ]
 
 [[package]]
+name = "parsedatetime"
+version = "2.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/20/cb587f6672dbe585d101f590c3871d16e7aec5a576a1694997a3777312ac/parsedatetime-2.6.tar.gz", hash = "sha256:4cb368fbb18a0b7231f4d76119165451c8d2e35951455dfee97c62a87b04d455", size = 60114, upload-time = "2020-05-31T23:50:57.443Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/a4/3dd804926a42537bf69fb3ebb9fd72a50ba84f807d95df5ae016606c976c/parsedatetime-2.6-py3-none-any.whl", hash = "sha256:cb96edd7016872f58479e35879294258c71437195760746faffedb692aef000b", size = 42548, upload-time = "2020-05-31T23:50:56.315Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1948,6 +1963,7 @@ dependencies = [
     { name = "langchain-ollama" },
     { name = "logfire" },
     { name = "openai" },
+    { name = "parsedatetime" },
     { name = "pydantic-ai-slim", extra = ["google", "openai"] },
     { name = "pydantic-evals", extra = ["logfire"] },
     { name = "pytest" },
@@ -1967,6 +1983,7 @@ requires-dist = [
     { name = "langchain-ollama", specifier = ">=1.1.0" },
     { name = "logfire", specifier = ">=4.37.0" },
     { name = "openai", specifier = ">=2.43.0" },
+    { name = "parsedatetime", specifier = ">=2.6" },
     { name = "pydantic-ai-slim", extras = ["google", "openai"], specifier = ">=1.107.0" },
     { name = "pydantic-evals", extras = ["logfire"], specifier = ">=1.107.0" },
     { name = "pytest", specifier = ">=9.1.1" },

@@ -1,7 +1,7 @@
 import sqlite3
 import sys
 from pathlib import Path
-
+from datetime import datetime
 import pytest
 
 # 1. Force Python to see the root directory before doing ANY imports
@@ -150,3 +150,12 @@ def test_check_availability_impl_returns_rejection_message_when_patient_aggressi
         assert 'aggressive' in str(e)
     else:
         pytest.fail()
+
+def test_get_datetime_from_phrase_returns_todays_date():
+    # Given the agent has parsed out today as the day to make the appointment
+    TODAY_STR = 'today'
+    # When the agent uses the tool on this string
+    acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(TODAY_STR)
+    # Then the tool returns today's date
+    expected_date = datetime.now().date()
+    assert acc_datetime.date() == expected_date
