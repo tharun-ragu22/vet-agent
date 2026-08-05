@@ -196,6 +196,46 @@ import pytest
                 minute=30,
             ),
         ),
+        (
+            "2026-08-03 12:00:00",
+            "2 weeks from Wednesday at 11:15am",
+            lambda now: datetime(
+                year=now.year,
+                month=8,
+                day=19,
+                hour=11,
+                minute=15,
+            ),
+        ),
+        (
+            "2026-08-06 12:00:00",
+            "2 weeks from today at 3:00PM",
+            lambda now: datetime(
+                year=now.year,
+                month=8,
+                day=20,
+                hour=15,
+                minute=0,
+            ),
+        ),
+        (
+            "2026-08-06 12:00:00", # Thursday
+             "next Wednesday at 3:00PM",
+            lambda now: datetime(
+                year=now.year,
+                month=8,
+                day=12,
+                hour=15,
+                minute=0,
+            ),
+        ),
+        (
+            "2026-08-03 12:00:00",  # Monday
+            "next Thursday at 11 A.M.",
+            lambda now: (now + timedelta(days=10)).replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ),
+        ),
     ],
 )
 def test_get_datetime_from_phrase(frozen_time, phrase, expected):
