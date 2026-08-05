@@ -165,6 +165,11 @@ import pytest
             lambda now: now.replace(hour=17, minute=0, second=0, microsecond=0),
         ),
         (
+            "2026-08-04 12:00:00",
+            "5:00 P.M. today",
+            lambda now: now.replace(hour=17, minute=0, second=0, microsecond=0),
+        ),
+        (
             "2026-08-03 12:00:00",  # Monday
             "thursday at 11 A.M.",
             lambda now: (now + timedelta(days=3)).replace(
