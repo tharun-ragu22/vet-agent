@@ -152,53 +152,53 @@ def test_check_availability_impl_returns_rejection_message_when_patient_aggressi
     else:
         pytest.fail()
 
-def test_get_datetime_from_phrase_returns_todays_date():
-    # Given the agent has parsed out today as the day to make the appointment
-    TODAY_STR = 'today'
-    # When the agent uses the tool on this string
-    acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(TODAY_STR)
-    # Then the tool returns today's date
-    expected_date = datetime.now().date()
-    assert acc_datetime.date() == expected_date
+from datetime import datetime, timedelta
+from freezegun import freeze_time
+import pytest
 
-def test_get_datetime_from_phrase_today_at_five_pm():
-    # Given the agent has parsed out 'today at 5 P.M.' as the day to make the appointment
-    TODAY_STR = 'today at 5 P.M.'
-    # When the agent uses the tool on this string
-    acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(TODAY_STR)
-    # Then the tool returns the correct datetime
-    expected_date = datetime.now().replace(hour=17, minute=0, second = 0, microsecond=0)
-    assert acc_datetime == expected_date
-
-@freeze_time("2026-08-03 12:00:00")
-def test_get_datetime_from_phrase_today_is_monday_get_thursday_at_11_am():
-    # Given today is Monday
-    # And the agent has parsed out 'thursday at 11 A.M.' as the day to make the appointment
-    DATE_PHRASE = 'thursday at 11 A.M.'
-    # When the agent uses the tool on this string
-    acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(DATE_PHRASE)
-    # Then the tool returns the correct datetime
-    expected_date = (datetime.now()+timedelta(days=3)).replace(hour=11, minute=0, second = 0, microsecond=0)
-    assert acc_datetime == expected_date
-
-@freeze_time("2026-08-07 12:00:00")
-def test_get_datetime_from_phrase_today_is_friday_get_thursday_at_11_am():
-    # Given today is Friday
-    # Given the agent has parsed out 'thursday at 11 A.M.' as the day to make the appointment
-    DATE_PHRASE = 'thursday at 11 A.M.'
-    # When the agent uses the tool on this string
-    acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(DATE_PHRASE)
-    # Then the tool returns the correct datetime
-    expected_date = (datetime.now()+timedelta(days=6)).replace(hour=11, minute=0, second = 0, microsecond=0)
-    assert acc_datetime == expected_date
-
-@freeze_time("2026-08-06 12:00:00")
-def test_get_datetime_from_phrase_today_is_thursday_get_thursday_at_11_am():
-    # Given today is Thursday
-    # Given the agent has parsed out 'thursday at 11 A.M.' as the day to make the appointment
-    DATE_PHRASE = 'thursday at 11 A.M.'
-    # When the agent uses the tool on this string
-    acc_datetime = AgentBaseClass.get_datetime_from_phrase_impl(DATE_PHRASE)
-    # Then the tool returns the correct datetime
-    expected_date = (datetime.now()+timedelta(days=7)).replace(hour=11, minute=0, second = 0, microsecond=0)
-    assert acc_datetime == expected_date
+@pytest.mark.parametrize(
+    "frozen_time, phrase, expected",
+    [
+        (
+            "2026-08-04 12:00:00",
+            "today at 5 P.M.",
+            lambda now: now.replace(hour=17, minute=0, second=0, microsecond=0),
+        ),
+        (
+            "2026-08-03 12:00:00",  # Monday
+            "thursday at 11 A.M.",
+            lambda now: (now + timedelta(days=3)).replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ),
+        ),
+        (
+            "2026-08-07 12:00:00",  # Friday
+            "thursday at 11 A.M.",
+            lambda now: (now + timedelta(days=6)).replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ),
+        ),
+        (
+            "2026-08-06 12:00:00",  # Thursday
+            "thursday at 11 A.M.",
+            lambda now: (now + timedelta(days=7)).replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ),
+        ),
+        (
+            "2026-08-06 12:00:00",
+            "December 31st at 2:30pm.",
+            lambda now: datetime(
+                year=now.year,
+                month=12,
+                day=31,
+                hour=14,
+                minute=30,
+            ),
+        ),
+    ],
+)
+def test_get_datetime_from_phrase(frozen_time, phrase, expected):
+    with freeze_time(frozen_time):
+        result = AgentBaseClass.get_datetime_from_phrase_impl(phrase)
+        assert result == expected(datetime.now())
