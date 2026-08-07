@@ -8,6 +8,7 @@ from .local_agent import LocalAgent
 import sys
 import json
 import sqlite3
+from .custom_evaluators import GetDatetimeFromPhrase_CheckKeyWords
 
 
 connection = sqlite3.connect(":memory:", check_same_thread=False)
@@ -100,7 +101,8 @@ dataset = Dataset(
             ]),
             evaluators=[
                 CheckAvailability_NoneFoundFirstTime(),
-                CheckAvailability_AppointmentsFoundOnNthTime(nth_time=1)
+                CheckAvailability_AppointmentsFoundOnNthTime(nth_time=1),
+                GetDatetimeFromPhrase_CheckKeyWords(expected_keywords=['today', '3pm'])
             ]
         ),
         Case(

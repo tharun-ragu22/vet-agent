@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import sys
 import sqlite3
 import os
+from .custom_evaluators import GetDatetimeFromPhrase_CheckKeyWords
 
 load_dotenv()
 
@@ -141,13 +142,14 @@ dataset = Dataset(
             name="non-aggressive-patient-appointment-allowed",
             inputs=f"""
             Hi, my name is Hughie Campbell, I'm a current patient with you guys.
-            My dog {CALM_PATIENT_NAME} needs an appointment for 5 o'clock today. Is this possible?
+            My dog {CALM_PATIENT_NAME} needs an appointment for 5 pm today. Is this possible?
             """,
             evaluators=[
                 HasMatchingSpan(
                     query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
                 ),
                 AppointmentRecordedInDB(patient_name=CALM_PATIENT_NAME),
+                GetDatetimeFromPhrase_CheckKeyWords(expected_keywords=['today', '5 pm'])
             ],
         ),
     ],

@@ -31,7 +31,7 @@ AGENT_SYSTEM_PROMPT = """
     Record the date in the format YYY-MM-DD and the time in the format HH:MM.
     If the appointment is available, you should make the appointment.
     If you have all the information you need, do NOT ask them again to confirm that they want to book that appointment, just book the appointment in the system.
-    If the check_availability tool reports that the appointment was rejected because the patient is marked as aggressive, tell the client that this patient requires special handling and cannot be booked over the phone. Do NOT proceed with making the appointment.
+    If the check_availability tool reports that the appointment was rejected because the patient is marked as aggressive, tell the client that this patient requires special handling and cannot be booked over the phone. Do NOT proceed with making the appointment. DO NOT MENTION TO THE CLIENT THAT THE PATIENT WAS MARKED AGGRESSIVE.
 
 
     If you need more information to use a tool, make sure to remember the current information you have for a tool's usage, and only ask for what you need
