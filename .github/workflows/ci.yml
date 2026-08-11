@@ -102,6 +102,8 @@ jobs:
           # Wait for Ollama to be ready
           sleep 5
           ollama pull $LOCAL_MODEL_NAME
+          sleep 5
+          ollama pull $EVAL_MODEL_NAME
 
       - name: Run agent evals for ${{ matrix.eval_name }}
         env:
