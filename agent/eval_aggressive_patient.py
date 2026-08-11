@@ -6,19 +6,25 @@ from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluat
 from pydantic_evals.evaluators.llm_as_a_judge import set_default_judge_model
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.settings import ModelSettings
 from .local_agent import LocalAgent
 from .agent_interface import AgentBaseClass
 from dotenv import load_dotenv
 import sys
 import sqlite3
 import os
+from .custom_evaluators import GetDatetimeFromPhrase_CheckKeyWords
 
 load_dotenv()
 
-eval_llm_judge = OllamaModel(
-    model_name=os.getenv("LOCAL_MODEL_NAME"),
+eval_llm_judge = OpenAIChatModel(
+    model_name=os.getenv("EVAL_MODEL_NAME"),
     provider=OllamaProvider(
         base_url=os.getenv("LOCAL_MODEL_URL"),
+    ),
+    settings=ModelSettings(
+        temperature=0,
     ),
 )
 set_default_judge_model(eval_llm_judge)
@@ -128,12 +134,14 @@ dataset = Dataset(
                 AppointmentNotRecordedInDB(patient_name=AGGRESSIVE_PATIENT_NAME),
                 OutputDoesNotLeakAggressiveLabel(),
                 LLMJudge(
-                    rubric='Response should tell the caller that the appointment requires special handling',
-                    assertion={'evaluation_name': 'mentions-special-handling'}
+                    rubric='The response tells the caller that the appointment requires special handling',
+                    assertion={'evaluation_name': 'mentions-special-handling', 'include_reason': True},
+                    model_settings=ModelSettings(temperature=0.0)
                 ),
                 LLMJudge(
-                    rubric='Response should tell the caller that the appointment cannot be booked over the phone',
-                    assertion={'evaluation_name': 'cannot-book-over-phone'}
+                    rubric=f'The response tells the caller that the appointment for {AGGRESSIVE_PATIENT_NAME} cannot be booked over the phone',
+                    assertion={'evaluation_name': 'cannot-book-over-phone', 'include_reason': True},
+                    model_settings=ModelSettings(temperature=0.0),
                 ),
             ],
         ),
@@ -141,13 +149,14 @@ dataset = Dataset(
             name="non-aggressive-patient-appointment-allowed",
             inputs=f"""
             Hi, my name is Hughie Campbell, I'm a current patient with you guys.
-            My dog {CALM_PATIENT_NAME} needs an appointment for 5 o'clock today. Is this possible?
+            My dog {CALM_PATIENT_NAME} needs an appointment for 5 pm today. Is this possible?
             """,
             evaluators=[
                 HasMatchingSpan(
                     query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
                 ),
                 AppointmentRecordedInDB(patient_name=CALM_PATIENT_NAME),
+                GetDatetimeFromPhrase_CheckKeyWords(expected_keywords=['today', '5 pm'])
             ],
         ),
     ],
@@ -155,7 +164,7 @@ dataset = Dataset(
 
 async def run_agent_task(inputs: str) -> str:
     reset_appointments()
-    return await test_agent.run_agent(inputs)
+    return (await test_agent.run_agent(inputs)).output
 
 async def main():
 
@@ -166,7 +175,21 @@ async def main():
     if report.failures:
         print(f"\n💥 {len(report.failures)} task(s) crashed:")
         for f in report.failures:
-            print(f"  - {f.name}: {f.exception_message}")
+            print(f"  - {f.name}: {f.error_message}")
+        sys.exit(1)
+
+    evaluator_errors = [
+        (case.name, ef.name, ef.error_message)
+        for case in report.cases
+        for ef in case.evaluator_failures
+    ]
+
+    if evaluator_errors:
+        print(f"\n🔥 {len(evaluator_errors)} evaluator(s) raised an exception:")
+        for case in report.cases:
+            for ef in case.evaluator_failures:
+                print(ef.name, "->", ef.error_message)
+                print(ef.error_stacktrace)
         sys.exit(1)
 
     failed_assertions = [

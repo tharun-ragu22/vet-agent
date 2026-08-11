@@ -1,5 +1,6 @@
 import asyncio
 import logfire
+from pydantic_ai import ModelSettings
 from pydantic_evals import Case, Dataset
 from dataclasses import dataclass
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, Contains  
@@ -7,7 +8,7 @@ from .local_summarizer_agent import LocalSummarizerAgent
 import sys
 from dataclasses import dataclass
 from pydantic_evals.evaluators import LLMJudge
-from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 from dotenv import load_dotenv
 from pydantic_evals.evaluators.llm_as_a_judge import set_default_judge_model
@@ -35,10 +36,14 @@ logfire.configure(send_to_logfire=False)
 logfire.instrument_pydantic_ai()
 
 test_agent = LocalSummarizerAgent()
-eval_llm_judge = OllamaModel(
+
+eval_llm_judge = OpenAIChatModel(
     model_name=os.getenv("LOCAL_MODEL_NAME"),
     provider=OllamaProvider(
         base_url=os.getenv("LOCAL_MODEL_URL"),
+    ),
+    settings=ModelSettings(
+        temperature=0,
     ),
 )
 set_default_judge_model(eval_llm_judge)
@@ -71,7 +76,8 @@ dataset = Dataset(
                     rubric='Response should mention no specific caller identification.',
                     assertion={
                         'evaluation_name': 'no-caller-info'
-                    }
+                    },
+                    model_settings=ModelSettings(temperature=0.0)
                 ),
                 
             ],
@@ -90,19 +96,22 @@ dataset = Dataset(
                     rubric='Response should mention that Jerome Heffner is calling for his dog Michael.',
                     assertion={
                         'evaluation_name': 'includes-caller-info'
-                    }
+                    },
+                    model_settings=ModelSettings(temperature=0.0)
                 ),
                 LLMJudge(
                     rubric='Response should mention that Michael is diabetic',
                     assertion={
                         'evaluation_name': 'dog-diabetic'
-                    }
+                    },
+                    model_settings=ModelSettings(temperature=0.0)
                 ),
                 LLMJudge(
                     rubric='Response should mention that the caller is inquiring about his dog\'s insulin',
                     assertion={
                         'evaluation_name': 'dog-insulin'
-                    }
+                    },
+                    model_settings=ModelSettings(temperature=0.0)
                 ),
                 
             ],
@@ -138,7 +147,7 @@ async def run_agent_task(inputs: str) -> str:
 
 async def main():
 
-    report = await dataset.evaluate(run_agent_task)
+    report = await dataset.evaluate(run_agent_task, max_concurrency=1)
 
     report.print(include_reasons=True)
 
@@ -146,6 +155,20 @@ async def main():
         print(f"\n💥 {len(report.failures)} task(s) crashed:")
         for f in report.failures:
             print(f"  - {f.name}: {f.exception_message}")
+        sys.exit(1)
+
+    evaluator_errors = [
+        (case.name, ef.name, ef.error_message)
+        for case in report.cases
+        for ef in case.evaluator_failures
+    ]
+
+    if evaluator_errors:
+        print(f"\n🔥 {len(evaluator_errors)} evaluator(s) raised an exception:")
+        for case in report.cases:
+            for ef in case.evaluator_failures:
+                print(ef.name, "->", ef.error_message)
+                print(ef.error_stacktrace)
         sys.exit(1)
 
     failed_assertions = [

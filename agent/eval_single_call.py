@@ -2,12 +2,13 @@ import asyncio
 import logfire
 from pydantic_evals import Case, Dataset
 from dataclasses import dataclass
-from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext, Contains  
+from pydantic_evals.evaluators import EvaluationReason, HasMatchingSpan, Evaluator, EvaluatorContext  
 from .local_agent import LocalAgent
-from .agent_interface import CHUNK_ALERT
 import sys
 import json
 import sqlite3
+from datetime import datetime
+from .custom_evaluators import GetDatetimeFromPhrase_CheckKeyWords
 
 connection = sqlite3.connect(":memory:", check_same_thread=False)
 cursor = connection.cursor()
@@ -23,8 +24,10 @@ cursor.executescript(CREATE_TABLE_COMMAND)
 @dataclass
 class SimpleAppointment_RecordedInDB(Evaluator):
     """Check if appointment was recorded in the db"""
+    appointment_day : str
+    appointment_time : str
     def evaluate(self, ctx: EvaluatorContext) -> bool:
-        result = cursor.execute(f"SELECT * FROM appointments").fetchall()
+        result = cursor.execute(f"SELECT * FROM appointments WHERE day= ? AND time= ?", (self.appointment_day, self.appointment_time)).fetchall()
 
         return len(result) == 1
 
@@ -39,6 +42,7 @@ class ParseAppointmentNotMade(Evaluator):
                 ]
             }
         )
+
 
 
 @dataclass
@@ -75,7 +79,7 @@ dataset = Dataset(
             name="simple-appointment",
             inputs="""
             Hi, my name is Hughie Campbell, I'm a current patient with you guys. 
-            My dog Cosette needs an appointment for 5 o'clock today. Is this possible?
+            My dog Cosette needs an appointment for 5:00 P.M. today. Is this possible?
             """,
             evaluators=[
                 HasMatchingSpan(
@@ -84,7 +88,11 @@ dataset = Dataset(
                 HasMatchingSpan(
                     query={"has_attributes": {"gen_ai.tool.name": "make_appointment"}}
                 ),
-                SimpleAppointment_RecordedInDB(),
+                GetDatetimeFromPhrase_CheckKeyWords(expected_keywords=['today', '5:00 P.M.']),
+                SimpleAppointment_RecordedInDB(
+                    appointment_day=datetime.today().date().strftime("%Y-%m-%d"),
+                    appointment_time="17:00"
+                ),
             ],
         ),
         Case(

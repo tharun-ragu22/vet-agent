@@ -1,7 +1,8 @@
 import sqlite3
 import sys
 from pathlib import Path
-
+from datetime import datetime, timedelta
+from freezegun import freeze_time
 import pytest
 
 # 1. Force Python to see the root directory before doing ANY imports
@@ -150,3 +151,99 @@ def test_check_availability_impl_returns_rejection_message_when_patient_aggressi
         assert 'aggressive' in str(e)
     else:
         pytest.fail()
+
+from datetime import datetime, timedelta
+from freezegun import freeze_time
+import pytest
+
+@pytest.mark.parametrize(
+    "frozen_time, phrase, expected",
+    [
+        (
+            "2026-08-04 12:00:00",
+            "today at 5 P.M.",
+            lambda now: now.replace(hour=17, minute=0, second=0, microsecond=0),
+        ),
+        (
+            "2026-08-04 12:00:00",
+            "5:00 P.M. today",
+            lambda now: now.replace(hour=17, minute=0, second=0, microsecond=0),
+        ),
+        (
+            "2026-08-03 12:00:00",  # Monday
+            "thursday at 11 A.M.",
+            lambda now: (now + timedelta(days=3)).replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ),
+        ),
+        (
+            "2026-08-07 12:00:00",  # Friday
+            "thursday at 11 A.M.",
+            lambda now: (now + timedelta(days=6)).replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ),
+        ),
+        (
+            "2026-08-06 12:00:00",  # Thursday
+            "thursday at 11 A.M.",
+            lambda now: (now + timedelta(days=7)).replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ),
+        ),
+        (
+            "2026-08-06 12:00:00",
+            "December 31st at 2:30pm.",
+            lambda now: datetime(
+                year=now.year,
+                month=12,
+                day=31,
+                hour=14,
+                minute=30,
+            ),
+        ),
+        (
+            "2026-08-03 12:00:00",
+            "2 weeks from Wednesday at 11:15am",
+            lambda now: datetime(
+                year=now.year,
+                month=8,
+                day=19,
+                hour=11,
+                minute=15,
+            ),
+        ),
+        (
+            "2026-08-06 12:00:00",
+            "2 weeks from today at 3:00PM",
+            lambda now: datetime(
+                year=now.year,
+                month=8,
+                day=20,
+                hour=15,
+                minute=0,
+            ),
+        ),
+        (
+            "2026-08-06 12:00:00", # Thursday
+             "next Wednesday at 3:00PM",
+            lambda now: datetime(
+                year=now.year,
+                month=8,
+                day=12,
+                hour=15,
+                minute=0,
+            ),
+        ),
+        (
+            "2026-08-03 12:00:00",  # Monday
+            "next Thursday at 11 A.M.",
+            lambda now: (now + timedelta(days=10)).replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ),
+        ),
+    ],
+)
+def test_get_datetime_from_phrase(frozen_time, phrase, expected):
+    with freeze_time(frozen_time):
+        result = AgentBaseClass.get_datetime_from_phrase_impl(phrase)
+        assert result == expected(datetime.now())

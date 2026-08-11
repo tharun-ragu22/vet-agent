@@ -3,6 +3,8 @@ from dataclasses import dataclass
 import sqlite3
 from typing import Any
 from pydantic_ai import Agent, RunContext
+import parsedatetime
+from datetime import datetime
 
 CHUNK_ALERT = 'chunk_uploaded'
 
@@ -25,10 +27,11 @@ AGENT_SYSTEM_PROMPT = """
     2. Making Appointments
     If someone asks you to make an appointment with them.You must check if an appointment is available before making it. 
     If the appointment day and time they are requesting is currently recorded in the database, then you must tell them this. Do NOT proceed with making the appointment.
-    If they use a relative date, like "today" or "tomorrow", just record that verbatim as the day. DO NOT ASK THE CLIENT FOR THE ACTUAL DATE.
+    If they use a relative date, like "today" or "tomorrow", use your available tools to get the actual date and time they are referring to. DO NOT ASK THE CLIENT FOR THE ACTUAL DATE.
+    Record the date in the format YYY-MM-DD and the time in the format HH:MM.
     If the appointment is available, you should make the appointment.
     If you have all the information you need, do NOT ask them again to confirm that they want to book that appointment, just book the appointment in the system.
-    If the check_availability tool reports that the appointment was rejected because the patient is marked as aggressive, tell the client that this patient requires special handling and cannot be booked over the phone. Do NOT proceed with making the appointment.
+    If the check_availability tool reports that the appointment was rejected because the patient is marked as aggressive, tell the client that this patient requires special handling and cannot be booked over the phone. Do NOT proceed with making the appointment. DO NOT MENTION TO THE CLIENT THAT THE PATIENT WAS MARKED AGGRESSIVE.
 
 
     If you need more information to use a tool, make sure to remember the current information you have for a tool's usage, and only ask for what you need
@@ -60,9 +63,23 @@ class AgentBaseClass(ABC):
         cursor = db_connection.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS appointments (patient_name TEXT PRIMARY KEY, day TEXT, time TEXT)")
         cursor.execute("CREATE TABLE IF NOT EXISTS patients (patient_name TEXT PRIMARY KEY, is_aggressive INTEGER NOT NULL DEFAULT 0)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS staff_availability (staff_id INTEGER NOT NULL, available_from TEXT NOT NULL, available_until TEXT NOT NULL)")
         db_connection.commit()
     
     def _register_tools(self):
+        @self._agent.tool_plain
+        def get_datetime_from_phrase(phrase: str) -> datetime:
+            """
+            Converts natural language description of date AND time into datetime object
+            
+            Examples (if today is August 6, 2026):
+            'today at 11:15 A.M.' -> 2026-08-06 11:15:00
+            '11:15 A.M. today' -> 2026-08-06 11:15:00
+            'tomorrow at 3:00 P.M.' -> 2026-08-07 15:00:00
+            'Wednesday at 4:15 P.M.' -> 2026-08-12 16:15:00
+            """
+            return self.get_datetime_from_phrase_impl(phrase)
+
         @self._agent.tool
         def make_appointment(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> str:
             """Makes the appointment in the system"""
@@ -72,6 +89,14 @@ class AgentBaseClass(ABC):
         def check_availability(ctx: RunContext[AgentDeps], patient_name: str, day: str, time: str) -> Any:
             """Checks if appointment is available"""
             return self.check_availability(ctx, patient_name, day, time)
+
+    @staticmethod
+    def get_datetime_from_phrase_impl(phrase: str) -> datetime:
+        print('getting dt from phrase:', phrase)
+        cal = parsedatetime.Calendar(version=parsedatetime.VERSION_CONTEXT_STYLE)       
+        dt, _ = cal.parseDT(phrase)
+        print('got dt:', dt)
+        return dt
 
     @staticmethod
     def make_appointment_impl(patient_name: str, day: str, time: str, db_connection: sqlite3.Connection):
